@@ -29,22 +29,9 @@ Para Render Cron Jobs e cron-job.org, configure:
 - Corpo: vazio
 - Agenda inicial sugerida: a cada 15 minutos (`*/15 * * * *`), respeitando os limites do plano do provedor.
 
-### Vercel Cron
+### Vercel Cron (desativado neste projeto)
 
-O Vercel Cron invoca rotas usando `GET`; por isso esta rota também aceita `GET` com a mesma autenticação e o mesmo processamento limitado. Quando `CRON_SECRET` está configurado no projeto Vercel, o valor é enviado automaticamente como `Authorization: Bearer ...`. Exemplo de configuração versionável em `vercel.json`:
-
-```json
-{
-  "crons": [
-    {
-      "path": "/api/cron/release-expired-sales",
-      "schedule": "*/15 * * * *"
-    }
-  ]
-}
-```
-
-Cadastre `CRON_SECRET` nas variáveis do projeto Vercel e faça um novo deploy para aplicar a agenda. Confira as restrições de frequência do plano: o plano Hobby pode limitar cron jobs a uma execução diária, o que não atende a uma limpeza a cada 15 minutos.
+A rota também aceita `GET` com a mesma autenticação, para compatibilidade futura. A automação escolhida para este projeto usa cron-job.org via `POST`; `vercel.json` não declara `crons` porque o plano Hobby não permite a frequência de 15 minutos e rejeita o deploy. Não reative um bloco `crons` com intervalo menor que diário sem mudar o plano da Vercel.
 
 ### Render Cron Jobs
 
@@ -60,7 +47,9 @@ Defina a agenda no painel do Render. As agendas do Render são interpretadas em 
 
 ### cron-job.org
 
-Crie um job com a URL completa, selecione `POST`, deixe o corpo vazio e adicione o cabeçalho personalizado `Authorization` com o valor `Bearer <CRON_SECRET>`. Escolha a frequência e habilite notificações de falha no painel do serviço.
+Crie um job usando a URL pública completa, por exemplo `https://montante-um2r-seven.vercel.app/api/cron/release-expired-sales`. Selecione o método `POST`, deixe o corpo vazio, configure a agenda `*/15 * * * *` e adicione o cabeçalho `Authorization` com o valor `Bearer <CRON_SECRET>` (use o mesmo segredo cadastrado como variável de ambiente do projeto Vercel). Habilite notificações de falha no painel do serviço.
+
+A configuração do repositório prepara o endpoint e documenta o job, mas não cria o job na conta cron-job.org. Depois de cadastrar o segredo nos dois serviços e criar o job externo, faça um disparo manual controlado e confirme HTTP `200` e os logs `cron.expired_sales.completed`.
 
 ## 3. Verificar a instalação
 
