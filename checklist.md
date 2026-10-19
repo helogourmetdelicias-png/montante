@@ -167,3 +167,6 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 - [x] Após autenticação pelo Git Credential Manager, `git push -u origin main` publicou o projeto em `https://github.com/helogourmetdelicias-png/montante.git`; a branch remota `main` foi criada e configurada como upstream.
 - [x] Antes da publicação: `npm test` passou (13/13), `npx tsc --noEmit --incremental false` passou e `npx next build --no-lint` passou incluindo as rotas Cron e webhook; ESLint foi desabilitado pelo comando.
 - [~] Variáveis de produção precisam ser cadastradas na Vercel antes do deploy. A lista e a classificação entre obrigatórias e opcionais foram entregues ao usuário; segredos reais não devem ser enviados ao GitHub nem compartilhados no chat.
+- [x] Script `build` atualizado para `prisma generate && next build`, garantindo a geração do Prisma Client antes da compilação do Next.js na Vercel.
+- [x] Validação da correção: `npm test` passou (13/13), `npx tsc --noEmit --incremental false` passou e `npm run build` concluiu a build otimizada de produção. A primeira tentativa encontrou a DLL do Prisma em uso pelo servidor local; após encerrar o processo Next.js da porta 3000, a mesma build passou.
+- [ ] Publicar a correção do script de build no remoto `origin/main` para disparar o novo deploy na Vercel.
