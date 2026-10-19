@@ -189,6 +189,8 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 
 ## GitHub e preparação para Vercel
 
+- [x] Funcionalidades publicadas em `origin/main` no commit `714fa37`: histórico/detalhe de vendas, comprovante não fiscal, desconto percentual, tela cheia e checklists. Check Vercel `montante-um2r` confirmado como `success`; domínio `montante-um2r-seven.vercel.app` responde e protege `/vendas` com redirecionamento ao login. Segundo projeto `montante` reportou `failure`; não corresponde ao domínio em uso. Conferência visual autenticada e impressora física ainda pendentes.
+
 - [x] Repositório Git inicializado localmente na branch `main`; remoto `origin` aponta para `https://github.com/helogourmetdelicias-png/montante.git`.
 - [x] Snapshot local criado no commit inicial `28ff565` com código, migrações, testes e documentação.
 - [x] Conferência antes da publicação: `.env`, `node_modules`, `.next` e `*.tsbuildinfo` estão ignorados; `.env` não foi staged nem enviado. Não foram encontrados arquivos de chave privada ou tokens de gateway no conjunto staged.

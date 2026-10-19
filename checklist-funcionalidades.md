@@ -105,6 +105,11 @@ Critérios: não editar estoque sem rastreio; concorrência, cancelamento e repe
 
 ### Registro desta revisão
 
+- [~] Ajuste de impressão/tela cheia: comprovante passa a abrir em janela interna do PDV, sem trocar de aba. Ao voltar pelo botão, restaura a tela cheia se ela estava ativa ao abrir. O diálogo de impressão pode encerrar a tela cheia conforme o navegador; restauração automática sem clique não é garantida. Escape continua permitindo sair sem forçar reentrada. Testes de impressão física e interação no navegador pendentes.
+- [x] Verificações do ajuste: 23 testes e TypeScript passaram; `next build` passou com Prisma Client existente (o comando completo encontrou DLL em uso pelo servidor local). Integração HTTP conferiu comprovante incorporado e isolamento com vendas concluídas/canceladas; pendente foi ignorada porque não havia registro nesse estado, sem criar ou alterar vendas para o teste.
+
+- [x] Código publicado em `origin/main` no commit `714fa37`; check `Vercel – montante-um2r` confirmou sucesso. Domínio `https://montante-um2r-seven.vercel.app`; `/vendas` sem sessão redireciona ao login. O segundo projeto `montante` falhou, como nos deploys anteriores, e não atende esse domínio. Validação visual autenticada e impressão física continuam pendentes.
+
 - [x] Continuação: `npm test` passou (23/23), TypeScript e build passaram incluindo `/vendas` e `/vendas/[id]`. `node --env-file=.env tests/sales-history.integration.mjs` passou com consultas somente de leitura: login, filtros, detalhes para concluída/pendente/cancelada, botão de impressão por situação, isolamento entre lojas e página inválida. Não houve cobrança ou alteração de estoque.
 
 - [x] Lista de referência lida e confrontada com implementação atual; prioridades registradas.

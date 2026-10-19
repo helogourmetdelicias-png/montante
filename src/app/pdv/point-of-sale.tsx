@@ -5,6 +5,7 @@ import { Barcode, Check, ChevronDown, CircleAlert, CreditCard, ImagePlus, Loader
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import StoreNavigation from '@/components/store-navigation';
+import ReceiptPreview from './receipt-preview';
 import { calculateCashChangeCents } from '@/lib/sales/cash-payment';
 
 type Product = {
@@ -589,7 +590,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
           </div>}
 
           {completed && <div className="px-5 pb-5"><div className="rounded-xl bg-emerald-50 p-4 text-center"><div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check size={22} /></div><p className="font-semibold text-emerald-900">Venda concluída</p><p className="mt-1 text-sm text-emerald-800">Total da venda: {money(amountDue)}</p>{selectedPayment?.provider === 'cash' && <><p className="mt-1 text-sm text-emerald-800">Valor recebido: {money(cashReceivedCents / 100)}</p><p className="mt-1 text-sm font-semibold text-emerald-900">Troco: {money((cashChange ?? 0) / 100)}</p></>}{selectedPayment?.provider === 'split' && <><p className="mt-1 text-sm text-emerald-800">Dinheiro: {money((cashApplied ?? 0) / 100)} · Pix: {money(Number(paymentAmount))}</p><p className="mt-1 text-sm font-semibold text-emerald-900">Troco em dinheiro: {money((cashChange ?? 0) / 100)}</p></>}</div><Button type="button" onClick={resetSale} className="mt-3 h-12 w-full rounded-xl bg-orange-600 hover:bg-orange-700"><Plus className="mr-2" size={18} />Iniciar próxima venda</Button></div>}
-          {completed && saleId && <div className="px-5 pb-5"><a href={`/vendas/${saleId}`} target="_blank" rel="noopener noreferrer" className="block rounded-xl border border-orange-200 p-3 text-center text-sm font-medium text-orange-700 hover:bg-orange-50">Ver comprovante / imprimir</a></div>}
+          {completed && saleId && <div className="px-5 pb-5"><ReceiptPreview saleId={saleId} /></div>}
         </aside>
       </div>
 

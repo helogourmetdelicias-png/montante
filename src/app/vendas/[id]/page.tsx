@@ -7,7 +7,7 @@ import PrintButton from './print-button';
 
 export const dynamic = 'force-dynamic';
 
-export default async function SaleDetail({ params }: { params: { id: string } }) {
+export default async function SaleDetail({ params, searchParams }: { params: { id: string }; searchParams: { embedded?: string } }) {
   const session = await auth();
   const tenantId = session?.user?.tenantId;
   if (!tenantId) redirect('/login');
@@ -24,7 +24,7 @@ export default async function SaleDetail({ params }: { params: { id: string } })
   const paid = sale.payment_attempts.filter(attempt => attempt.status === 'APPROVED');
   const subtotal = sale.items.reduce((sum, item) => sum.add(item.total_price), sale.total_amount.mul(0));
   return <main className="sale-detail min-h-screen bg-slate-50 p-4 text-slate-900 sm:p-8">
-    <div className="receipt-actions mx-auto mb-5 flex max-w-2xl flex-wrap items-center justify-between gap-3"><Link href="/vendas" className="text-orange-700 underline">Voltar às vendas</Link>{sale.status === 'completed' && <PrintButton />}</div>
+    <div className="receipt-actions mx-auto mb-5 flex max-w-2xl flex-wrap items-center justify-between gap-3">{searchParams.embedded !== '1' && <Link href="/vendas" className="text-orange-700 underline">Voltar às vendas</Link>}{sale.status === 'completed' && <PrintButton />}</div>
     <article className="sale-receipt mx-auto max-w-2xl space-y-5 rounded-xl border bg-white p-5 sm:p-8">
       <header className="border-b pb-4"><h1 className="text-xl font-semibold">{sale.tenant.name}</h1><p className="font-medium">Venda #{sale.sale_number} · {saleStatus(sale.status)}</p><p className="text-sm">{dateTime(sale.created_at)} · Horário de São Paulo</p><p className="text-sm">Operador: {sale.cash_register_session?.user.name ?? 'Não registrado'}</p><p className="mt-3 text-sm font-semibold">{sale.status === 'completed' ? 'COMPROVANTE NÃO FISCAL' : 'CONSULTA DE VENDA — NÃO COMPROVA PAGAMENTO'}</p>{paid.some(attempt => attempt.is_simulated) && <p className="font-bold text-amber-800">TESTE — PAGAMENTO SIMULADO</p>}</header>
       <section aria-label="Itens da venda" className="space-y-3">{sale.items.map(item => <div key={item.id} className="border-b pb-3"><p className="break-words font-medium">{item.product.name}</p><div className="flex flex-wrap justify-between gap-2 text-sm"><span>{Number(item.quantity.toString()).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} × {money(item.unit_price)}</span><span>{money(item.total_price)}</span></div>{item.product.sku && <p className="text-xs text-slate-500">Código: {item.product.sku}</p>}</div>)}</section>
