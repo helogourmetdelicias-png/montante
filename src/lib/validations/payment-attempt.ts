@@ -23,8 +23,10 @@ export const createPaymentAttemptSchema = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['customerEmail'], message: 'Informe o e-mail do comprador para cobrar com Mercado Pago.' });
   }
   if (value.provider === 'pagarme') {
-    if (!value.customerName?.trim() || !value.customerEmail || !value.customerDocument || !value.customerPhone || !value.customerAddress) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['customerName'], message: 'Informe nome, e-mail, CPF/CNPJ, telefone e endereço para gerar Pix pelo Pagar.me.' });
+    const documentLength = value.customerDocument?.replace(/\D/g, '').length;
+    const phoneLength = value.customerPhone?.replace(/\D/g, '').length;
+    if (!value.customerName?.trim() || !value.customerEmail || ![11, 14].includes(documentLength ?? 0) || ![10, 11].includes(phoneLength ?? 0)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['customerName'], message: 'Para cobrar com Pix Pagar.me, informe nome, e-mail, CPF/CNPJ válido e celular com DDD.' });
     }
   }
   if (value.provider === 'external_terminal' && (!value.terminalId || value.channel !== 'external_terminal')) {

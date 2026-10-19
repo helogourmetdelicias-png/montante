@@ -182,6 +182,10 @@ export async function POST(request: Request, context: { params: { id: string } }
       data: { status: 'FAILED', failure_code: 'GATEWAY_ERROR' },
     });
     console.error('Falha no gateway ao iniciar pagamento:', error);
-    return NextResponse.json({ error: 'O gateway não conseguiu iniciar a cobrança.', attempt: serializeAttempt(failedAttempt) }, { status: 502 });
+    const providerMessage = error instanceof Error ? error.message.slice(0, 300) : '';
+    const publicMessage = input.provider === 'pagarme' && providerMessage
+      ? providerMessage
+      : 'O gateway não conseguiu iniciar a cobrança.';
+    return NextResponse.json({ error: publicMessage, attempt: serializeAttempt(failedAttempt) }, { status: 502 });
   }
 }

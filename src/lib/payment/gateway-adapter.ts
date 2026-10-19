@@ -56,11 +56,16 @@ export interface PaymentGateway {
 
 export class PixManualGateway implements PaymentGateway {
   readonly provider: PaymentProvider = 'pix_manual';
+  private readonly pixKey: string;
+  private readonly pixKeyType: string;
 
   constructor(
-    private readonly pixKey: string,
-    private readonly pixKeyType: string
-  ) {}
+    pixKey: string,
+    pixKeyType: string
+  ) {
+    this.pixKey = pixKey;
+    this.pixKeyType = pixKeyType;
+  }
 
   async charge(request: ChargeRequest): Promise<ChargeResponse> {
     if (request.method !== 'pix' || request.channel !== 'online') {
@@ -84,11 +89,15 @@ export class PixManualGateway implements PaymentGateway {
 
 export class MercadoPagoGateway implements PaymentGateway {
   readonly provider: PaymentProvider = 'mercadopago';
+  private readonly accessToken: string;
+  private readonly apiBaseUrl: string;
 
   constructor(
-    private readonly accessToken: string,
-    private readonly apiBaseUrl = 'https://api.mercadopago.com'
+    accessToken: string,
+    apiBaseUrl = 'https://api.mercadopago.com'
   ) {
+    this.accessToken = accessToken;
+    this.apiBaseUrl = apiBaseUrl;
     if (!accessToken.trim()) throw new Error('Access token do Mercado Pago não configurado.');
   }
 
@@ -186,16 +195,40 @@ export class MercadoPagoGateway implements PaymentGateway {
 /** Pagar.me v5 adapter for online Pix charges (API key is stored encrypted per tenant). */
 export class PagarMeGateway implements PaymentGateway {
   readonly provider: PaymentProvider = 'pagarme';
+  private readonly apiKey: string;
+  private readonly apiBaseUrl: string;
 
   constructor(
-    private readonly apiKey: string,
-    private readonly apiBaseUrl = 'https://api.pagar.me/core/v5',
+    apiKey: string,
+    apiBaseUrl = 'https://api.pagar.me/core/v5',
   ) {
+    this.apiKey = apiKey;
+    this.apiBaseUrl = apiBaseUrl;
     if (!apiKey.trim()) throw new Error('Chave secreta do Pagar.me não configurada.');
   }
 
   private get authorization() {
     return `Basic ${Buffer.from(`${this.apiKey}:`).toString('base64')}`;
+  }
+
+  private getErrorDetail(data: unknown) {
+    if (!data || typeof data !== 'object') return '';
+    const payload = data as { message?: unknown; errors?: unknown };
+    if (typeof payload.message === 'string') return payload.message.slice(0, 240);
+    if (Array.isArray(payload.errors)) {
+      const message = payload.errors.find((item) => item && typeof item === 'object' && typeof (item as { message?: unknown }).message === 'string') as { message: string } | undefined;
+      if (message) return message.message.slice(0, 240);
+    }
+    if (payload.errors && typeof payload.errors === 'object') {
+      for (const value of Object.values(payload.errors)) {
+        const first = Array.isArray(value) ? value[0] : value;
+        if (typeof first === 'string') return first.slice(0, 240);
+        if (first && typeof first === 'object' && typeof (first as { message?: unknown }).message === 'string') {
+          return (first as { message: string }).message.slice(0, 240);
+        }
+      }
+    }
+    return '';
   }
 
   async charge(request: ChargeRequest): Promise<ChargeResponse> {
@@ -205,8 +238,8 @@ export class PagarMeGateway implements PaymentGateway {
     if (!Number.isSafeInteger(request.amount) || request.amount < 1) {
       throw new Error('O valor da cobrança deve ser informado em centavos inteiros.');
     }
-    if (!request.customerName?.trim() || !request.customerEmail || !request.customerDocument || !request.customerPhone || !request.customerAddress) {
-      throw new Error('Pagar.me exige nome, e-mail, CPF/CNPJ, telefone e endereço do comprador para gerar o Pix.');
+    if (!request.customerName?.trim() || !request.customerEmail || !request.customerDocument || !request.customerPhone) {
+      throw new Error('Pix Pagar.me exige nome, e-mail, CPF/CNPJ e telefone do comprador.');
     }
 
     const idempotencyKey = request.idempotencyKey ?? crypto.randomUUID();
@@ -228,13 +261,13 @@ export class PagarMeGateway implements PaymentGateway {
           document,
           type: document.length > 11 ? 'company' : 'individual',
           phones: { mobile_phone: { country_code: '55', area_code: phone.slice(0, 2), number: phone.slice(2) } },
-          address: {
+          ...(request.customerAddress ? { address: {
             country: 'BR',
             zip_code: request.customerAddress.zipCode.replace(/\D/g, ''),
             line_1: `${request.customerAddress.number}, ${request.customerAddress.street}, ${request.customerAddress.neighborhood}`.slice(0, 255),
             city: request.customerAddress.city,
             state: request.customerAddress.state.toUpperCase(),
-          },
+          } } : {}),
         },
         payments: [{ payment_method: 'pix', pix: { expires_in: 1800 } }],
         closed: true,
@@ -243,7 +276,7 @@ export class PagarMeGateway implements PaymentGateway {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const detail = typeof data.message === 'string' ? data.message : typeof data.errors?.[0]?.message === 'string' ? data.errors[0].message : '';
+      const detail = this.getErrorDetail(data);
       throw new Error(`Pagar.me retornou erro ${response.status}${detail ? ` (${detail})` : ''}.`);
     }
 
@@ -277,11 +310,16 @@ export class PagarMeGateway implements PaymentGateway {
 
 export class AsaasGateway implements PaymentGateway {
   readonly provider: PaymentProvider = 'asaas';
+  private readonly apiKey: string;
+  private readonly sandbox: boolean;
 
   constructor(
-    private readonly apiKey: string,
-    private readonly sandbox: boolean = false
-  ) {}
+    apiKey: string,
+    sandbox: boolean = false
+  ) {
+    this.apiKey = apiKey;
+    this.sandbox = sandbox;
+  }
 
   async charge(_request: ChargeRequest): Promise<ChargeResponse> {
     // TODO: implementar chamada à API do Asaas
@@ -298,8 +336,11 @@ export class AsaasGateway implements PaymentGateway {
 
 export class PagBankGateway implements PaymentGateway {
   readonly provider: PaymentProvider = 'pagbank';
+  private readonly token: string;
 
-  constructor(private readonly token: string) {}
+  constructor(token: string) {
+    this.token = token;
+  }
 
   async charge(_request: ChargeRequest): Promise<ChargeResponse> {
     // TODO: implementar chamada à API do PagBank
