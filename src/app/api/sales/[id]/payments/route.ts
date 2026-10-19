@@ -177,15 +177,15 @@ export async function POST(request: Request, context: { params: { id: string } }
       paymentUrl: result.paymentUrl,
     } }, { status: 201 });
   } catch (error) {
-    const failedAttempt = await prisma.paymentAttempt.update({
-      where: { id: attempt.id },
-      data: { status: 'FAILED', failure_code: 'GATEWAY_ERROR' },
-    });
-    console.error('Falha no gateway ao iniciar pagamento:', error);
     const providerMessage = error instanceof Error ? error.message.slice(0, 300) : '';
     const publicMessage = input.provider === 'pagarme' && providerMessage
       ? providerMessage
       : 'O gateway não conseguiu iniciar a cobrança.';
+    const failedAttempt = await prisma.paymentAttempt.update({
+      where: { id: attempt.id },
+      data: { status: 'FAILED', failure_code: 'GATEWAY_ERROR', failure_message: publicMessage },
+    });
+    console.error('Falha no gateway ao iniciar pagamento:', error);
     return NextResponse.json({ error: publicMessage, attempt: serializeAttempt(failedAttempt) }, { status: 502 });
   }
 }

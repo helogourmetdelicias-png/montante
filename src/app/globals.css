@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+@media print {
+  @page { margin: 8mm; }
+  .sale-detail { background: white !important; padding: 0 !important; }
+  .receipt-actions { display: none !important; }
+  .sale-receipt { border: 0 !important; border-radius: 0 !important; padding: 0 !important; width: 100%; max-width: 72mm !important; margin: 0 auto !important; color: black !important; font-size: 11px; }
+  .sale-receipt section > div { break-inside: avoid; }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

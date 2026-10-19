@@ -43,6 +43,8 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discount, setDiscount] = useState('0');
+  const [discountMode, setDiscountMode] = useState<'amount' | 'percent'>('amount');
+  const [fullscreen, setFullscreen] = useState(false);
   const [paymentOptions, setPaymentOptions] = useState<PaymentOption[]>([]);
   const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
   const [canSimulatePixApproval, setCanSimulatePixApproval] = useState(false);
@@ -77,7 +79,10 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   const [splitCashAmount, setSplitCashAmount] = useState('');
 
   const subtotal = useMemo(() => cart.reduce((sum, line) => sum + Number(line.product.price) * line.quantity, 0), [cart]);
-  const discountValue = Math.min(subtotal, Math.max(0, Number(discount.replace(',', '.')) || 0));
+  const discountInput = Math.max(0, Number(discount.replace(',', '.')) || 0);
+  const discountValue = Math.min(subtotal, discountMode === 'percent'
+    ? Math.round(subtotal * Math.min(100, discountInput)) / 100
+    : discountInput);
   const total = Math.max(0, subtotal - discountValue);
   const selectedPayment = paymentOptions.find((option) => option.provider + option.method + option.terminalId === selectedOption);
   const needsCustomerEmail = selectedPayment?.provider === 'mercadopago' || selectedPayment?.provider === 'split';
@@ -99,6 +104,22 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   const activeCashContribution = selectedPayment?.provider === 'split' ? splitCashCents : Math.round(amountDue * 100);
   const cashChangeCents = calculateCashChangeCents(activeCashContribution, cashReceivedCents);
   const splitPixBalanceCents = Math.round(amountDue * 100) - splitCashCents;
+
+  useEffect(() => {
+    const update = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', update);
+    return () => document.removeEventListener('fullscreenchange', update);
+  }, []);
+
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+      else setMessage('Este navegador não oferece tela cheia. Use a opção de tela cheia do navegador.');
+    } catch {
+      setMessage('Não foi possível mudar para tela cheia. Use a opção de tela cheia do navegador.');
+    }
+  }
 
   // Debounced search keeps the barcode field responsive without sending a request per keystroke.
   useEffect(() => {
@@ -437,6 +458,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   function resetSale() {
     setCart([]);
     setDiscount('0');
+    setDiscountMode('amount');
     setSaleId('');
     setAttemptId('');
     setPayment(null);
@@ -469,6 +491,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">
             <StoreNavigation activePage="pdv" canManageStore={canManageBrand} />
+            <Button type="button" variant="outline" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen}>{fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</Button>
             <div className="hidden rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 sm:block"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500" />Sessão ativa</div>
             <div className="relative flex h-[60px] w-[136px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 px-3 sm:h-[76px] sm:w-[190px]">
               {logoUrl ? <img src={logoUrl} alt={`Logo de ${storeName}`} className="max-h-full max-w-full object-contain" /> : <div className="text-center"><ImagePlus className="mx-auto mb-1 text-slate-400" size={22} /><span className="text-xs text-slate-500">Logo da loja</span></div>}
@@ -513,7 +536,8 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
 
           <div className="space-y-3 border-t border-slate-100 px-5 py-4">
             <div className="flex items-center justify-between text-sm"><span className="text-slate-600">Subtotal</span><span className="tabular-nums">{money(subtotal)}</span></div>
-            <label className="flex items-center justify-between gap-4 text-sm"><span className="text-slate-600">Desconto (R$)</span><Input type="number" min="0" max={subtotal} step="0.01" value={discount} disabled={Boolean(saleId)} onChange={(event) => setDiscount(event.target.value)} className="h-9 w-32 text-right tabular-nums" /></label>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><label htmlFor="sale-discount" className="text-slate-600">Desconto</label><div className="flex gap-2"><select aria-label="Tipo de desconto" value={discountMode} disabled={Boolean(saleId)} onChange={(event) => { setDiscountMode(event.target.value as 'amount' | 'percent'); setDiscount('0'); }} className="h-9 rounded-md border border-slate-200 bg-white px-2 disabled:bg-slate-50"><option value="amount">R$</option><option value="percent">%</option></select><Input id="sale-discount" type="number" min="0" max={discountMode === 'percent' ? 100 : subtotal} step="0.01" value={discount} disabled={Boolean(saleId)} onChange={(event) => setDiscount(event.target.value)} className="h-9 w-28 text-right tabular-nums" /></div></div>
+            {discountMode === 'percent' && <p className="text-right text-xs text-slate-500">Desconto aplicado: {money(discountValue)}</p>}
             <div className="flex items-end justify-between border-t border-slate-100 pt-3"><span className="font-semibold">Total</span><span className="text-2xl font-semibold tracking-tight tabular-nums">{money(total)}</span></div>
           </div>
 
@@ -565,6 +589,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
           </div>}
 
           {completed && <div className="px-5 pb-5"><div className="rounded-xl bg-emerald-50 p-4 text-center"><div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check size={22} /></div><p className="font-semibold text-emerald-900">Venda concluída</p><p className="mt-1 text-sm text-emerald-800">Total da venda: {money(amountDue)}</p>{selectedPayment?.provider === 'cash' && <><p className="mt-1 text-sm text-emerald-800">Valor recebido: {money(cashReceivedCents / 100)}</p><p className="mt-1 text-sm font-semibold text-emerald-900">Troco: {money((cashChange ?? 0) / 100)}</p></>}{selectedPayment?.provider === 'split' && <><p className="mt-1 text-sm text-emerald-800">Dinheiro: {money((cashApplied ?? 0) / 100)} · Pix: {money(Number(paymentAmount))}</p><p className="mt-1 text-sm font-semibold text-emerald-900">Troco em dinheiro: {money((cashChange ?? 0) / 100)}</p></>}</div><Button type="button" onClick={resetSale} className="mt-3 h-12 w-full rounded-xl bg-orange-600 hover:bg-orange-700"><Plus className="mr-2" size={18} />Iniciar próxima venda</Button></div>}
+          {completed && saleId && <div className="px-5 pb-5"><a href={`/vendas/${saleId}`} target="_blank" rel="noopener noreferrer" className="block rounded-xl border border-orange-200 p-3 text-center text-sm font-medium text-orange-700 hover:bg-orange-50">Ver comprovante / imprimir</a></div>}
         </aside>
       </div>
 

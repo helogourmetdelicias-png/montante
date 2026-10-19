@@ -202,7 +202,7 @@ export class PagarMeGateway implements PaymentGateway {
     apiKey: string,
     apiBaseUrl = 'https://api.pagar.me/core/v5',
   ) {
-    this.apiKey = apiKey;
+    this.apiKey = apiKey.trim();
     this.apiBaseUrl = apiBaseUrl;
     if (!apiKey.trim()) throw new Error('Chave secreta do Pagar.me não configurada.');
   }
@@ -275,13 +275,19 @@ export class PagarMeGateway implements PaymentGateway {
       cache: 'no-store',
     });
     const data = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      throw new Error('Pagar.me recusou a chave de API (401). Em Configurações → Pagamentos, salve novamente a chave secreta da API v5 obtida no painel Pagar.me (sk_...). Para Sandbox, use sk_test_...; chaves públicas pk_... e chaves antigas ak_... não servem para esta integração.');
+    }
     if (!response.ok) {
       const detail = this.getErrorDetail(data);
       throw new Error(`Pagar.me retornou erro ${response.status}${detail ? ` (${detail})` : ''}.`);
     }
 
     const transaction = data.last_transaction ?? data.charges?.[0]?.last_transaction;
-    if (!data.id || !transaction?.qr_code) throw new Error('Pagar.me criou o pedido sem retornar o código Pix esperado.');
+    if (!data.id || !transaction?.qr_code) {
+      const detail = this.getErrorDetail(transaction?.gateway_response);
+      throw new Error(`Pagar.me não gerou o Pix${detail ? ` (${detail})` : '. Confira se o Pix está habilitado na conta e se a chave corresponde ao ambiente configurado'}.`);
+    }
     return {
       provider: this.provider,
       method: 'pix',

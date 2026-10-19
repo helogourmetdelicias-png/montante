@@ -8,6 +8,11 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 
 ## Feito e validado
 
+- [~] Stone: usuário confirmou retorno `401 Authorization has been denied for this request.` A API Pagar.me recusou a autenticação; a causa específica da recusa da credencial ainda não foi confirmada. Conferido envio HTTP Basic com chave secreta como usuário e senha vazia. Ajuste local remove espaços externos da chave e orienta recadastro da chave secreta v5 no PDV em caso de 401. Próximo passo: obter a chave secreta correta no painel Pagar.me e salvá-la em Configurações → Pagamentos (Sandbox: `sk_test_...`), depois repetir a cobrança. Não é erro causado pelos dados do comprador.
+
+- [~] Investigação Stone em 19/10/2026: a venda `cmvfuvfd3000qb9qllx9xn15v` está pendente e suas duas tentativas Pagar.me estão `FAILED/GATEWAY_ERROR`, sem mensagem ou ID externo. O `502` do console sozinho não revela a causa. A credencial dessa configuração não pôde ser descriptografada com a `ENCRYPTION_KEY` local; isso não comprova falha de criptografia em produção. Nenhuma chave foi alterada. Correção local passa a extrair erros de `last_transaction.gateway_response` quando o pedido retorna sem Pix e salvar `failure_message` para diagnóstico. Testes 22/22 e TypeScript passaram; publicação e cobrança Sandbox ainda pendentes.
+- [x] Requisitos do comprador revisados na documentação oficial Pagar.me: pedido exige `customer` ou `customer_id`; clientes PSP exigem todos os campos de `customer`, incluindo endereço e telefone. O formulário local mantém endereço opcional para as demais contas, em seção recolhida. Não remover dados obrigatórios nem substituir por dados fictícios. Referências: https://docs.pagar.me/reference/criar-pedido-2 e https://docs.pagar.me/reference/pix-2.
+
 - [x] Módulo inicial de Caixa e Relatórios gerenciais implementado localmente: abertura/fechamento por operador e tenant, fundo de troco, suprimento/sangria, conferência, bloqueio de vendas sem turno e bloqueio de fechamento com vendas/cobranças pendentes; API e telas de relatório restritas a `owner/admin`, filtradas por tenant e intervalo comercial de São Paulo.
 - [x] Migration `20261019000100_cash_register_and_reports` aplicada no Supabase de produção com `npx prisma migrate deploy`; `npx prisma migrate status` confirmou o schema atualizado. Consultas diretas confirmaram `CashRegisterSession`, `CashRegisterMovement`, a coluna `Sale.cash_register_session_id` e o registro concluído em `_prisma_migrations`.
 - [x] Qualidade do módulo Caixa/Relatórios: `npx prisma validate`, geração do Prisma Client, `npx tsc --noEmit --incremental false`, `npm test` (15/15) e `npm run build` passaram nesta publicação. Os testes cobrem cálculo do saldo esperado do caixa, entradas/saídas e isolamento tenant/sessão.
@@ -38,6 +43,11 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 - [~] O adapter pattern lista Mercado Pago, Asaas, PagBank, Stone/Ton, Pix manual e terminal externo. Mercado Pago Pix tem criação/consulta e o fluxo misto com dinheiro; Pix manual/terminal ainda dependem de confirmação do operador, e os demais provedores não estão integrados.
 
 ## Não validado ou pendente
+
+### IMPORTANTE — Stone/Pagar.me adiada por decisão do usuário
+
+- [ ] Retomar a configuração depois das funcionalidades do PDV. Usuário confirmou uso da chave pública; isso explica a recusa de autenticação `401`. Cadastrar chave secreta v5 correta em Configurações → Pagamentos, conferir ambiente de teste/produção e situação da conta (painel mostrou INATIVO), gerar um Pix e validar pagamento. Não considerar homologado nem solicitar credencial pelo chat. Não avançar nessa configuração durante a etapa atual.
+- [x] Criado `checklist-funcionalidades.md` como referência das funcionalidades e prioridades, extraídas de `funcionalidadesPDV.txt` e comparadas com o código atual. Este checklist original continua responsável por operação, pagamentos, publicação e homologação.
 
 ### P0 — Acesso e loja de teste
 
@@ -87,6 +97,10 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 - [ ] Homologar com o provedor e executar uma transação real controlada antes de liberar produção.
 
 ## Verificações conhecidas
+
+- [x] Continuação das funcionalidades: implementadas telas `/vendas` e `/vendas/[id]`, navegação, filtros por número/situação, paginação, detalhe e impressão de comprovante não fiscal. Incluídos desconto percentual e tela cheia preparados anteriormente. `npm test` (23/23), TypeScript, build e integração HTTP somente de leitura passaram; acesso cruzado entre lojas retorna 404. Impressão física e confirmação visual ainda pendentes. Stone segue adiada; nenhuma chave foi alterada.
+
+- [x] Diagnóstico adicional Pagar.me em 19/10/2026: `npm test` passou (22/22), incluindo pedido HTTP 200 com recusa interna e pedido sem QR; TypeScript e `npm run build` passaram. A validação usa respostas simuladas e não confirma uma cobrança real na Stone.
 
 - [x] TypeScript: `npx tsc --noEmit --incremental false` passou após a API inicial de produtos.
 - [x] Build: `npx next build --no-lint` passou; as rotas novas `/api/products` e `/api/products/[id]` aparecem na build.
@@ -164,6 +178,8 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 - [x] Revalidação de qualidade em 19/10/2026: `npm test` passou (13/13), `npx tsc --noEmit --incremental false` passou e `npx next build --no-lint` passou incluindo Cron, PDV e webhook Mercado Pago; o build informa que lint está desabilitado.
 
 ## Próxima tarefa
+
+0. Prioridade Stone: publicar a correção de diagnóstico, repetir o Pix em Sandbox e conferir a mensagem no PDV/registro da tentativa. Confirmar ambiente da chave, habilitação Pix da conta e exigência de endereço PSP conforme a resposta. Não marcar a integração como homologada antes de gerar o QR e confirmar o pagamento pelo provedor.
 
 1. Com o provedor/domínio informado, cadastrar o mesmo `CRON_SECRET` na aplicação e no agendador, ativar a agenda e validar uma execução pelo histórico e logs.
 2. Receber as URLs HTTPS oficiais de `helo` e `minhaloja` e validar a exibição individual no PDV; não atribuir imagem provisória às lojas.

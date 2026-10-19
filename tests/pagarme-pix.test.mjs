@@ -15,6 +15,21 @@ const request = {
   customerPhone: '(11) 91234-5678',
 };
 
+test('Pagar.me trims pasted key whitespace and explains authentication rejection', async () => {
+  const originalFetch = globalThis.fetch;
+  let authorization;
+  globalThis.fetch = async (_url, options) => {
+    authorization = options.headers.Authorization;
+    return Response.json({ message: 'Authorization has been denied for this request.' }, { status: 401 });
+  };
+  try {
+    await assert.rejects(new PagarMeGateway('  sk_test_example\n').charge(request), /recusou a chave de API \(401\)/);
+    assert.equal(authorization, `Basic ${Buffer.from('sk_test_example:').toString('base64')}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('payment input accepts the four Pix buyer fields without an address', () => {
   assert.equal(createPaymentAttemptSchema.safeParse({
     idempotencyKey: '8a9bc08e-2bdc-4a5e-a92e-5efdc112f9c1',
@@ -91,6 +106,30 @@ test('Pagar.me API validation details are surfaced when a Pix order is rejected'
       new PagarMeGateway('sk_test_example').charge(request),
       /Pagar\.me retornou erro 400 \(address is required for this account\)/,
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Pagar.me surfaces a transaction refusal even when order creation returns HTTP 200', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({
+    id: 'or_failed', status: 'failed', charges: [{ last_transaction: {
+      status: 'failed', gateway_response: { errors: [{ message: 'Pix is not enabled for this account' }] },
+    } }],
+  });
+  try {
+    await assert.rejects(new PagarMeGateway('sk_test_example').charge(request), /Pix is not enabled for this account/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('Pagar.me gives an actionable error when the order has no Pix or refusal detail', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ id: 'or_no_pix', charges: [] });
+  try {
+    await assert.rejects(new PagarMeGateway('sk_test_example').charge(request), /Confira se o Pix está habilitado/);
   } finally {
     globalThis.fetch = originalFetch;
   }
