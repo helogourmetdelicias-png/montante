@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import StoreNavigation from '@/components/store-navigation';
 
 type Provider = {
   id: string;
@@ -184,6 +185,9 @@ export default function PaymentSettingsPage() {
           <p className="text-sm font-semibold text-primary">Montante · Administração da loja</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Pagamentos</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Configure os provedores da sua loja. Cada estabelecimento mantém suas próprias credenciais.</p>
+          <div className="mt-4">
+            <StoreNavigation activePage="payments" canManageStore={Boolean(pageData)} />
+          </div>
         </div>
         <Button type="button" variant="outline" onClick={() => void loadData()} disabled={loading || busy}>
           <RefreshCw className="mr-2 h-4 w-4" /> Atualizar

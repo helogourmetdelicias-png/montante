@@ -100,6 +100,7 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 - [x] Sessão autenticada do PDV conferida: tenant de teste sem produtos e opção Mercado Pago Pix disponível; nenhuma venda/cobrança foi iniciada.
 - [x] Processamento agendado de expirações com conciliação de Orders passou TypeScript e build de produção; configuração de hospedagem ainda pendente.
 - [x] Tela `/produtos` com cadastro, edição e desativação lógica, protegida para owner/admin, passou TypeScript e build de produção.
+- [x] Navegação compartilhada adicionada entre PDV, Produtos e Pagamentos; telas administrativas só aparecem para owner/admin, e a tela Pagamentos mantém o retorno ao PDV mesmo quando não consegue carregar os dados.
 - [x] Interface `/produtos` conferida visualmente com sessão autenticada; formulário de cadastro aberto e fechado sem gravar dados.
 - [~] POST de venda, reserva de estoque e iniciação Pix foram exercitados no Supabase; o QR Code abriu após corrigir o e-mail de Sandbox. A integração automatizada simula aprovação, cancelamento e expiração usando registros temporários revertidos; nenhuma cobrança real foi criada pelo teste. A aprovação do Pix pelo provedor e o webhook continuam pendentes.
 - [x] Diagnóstico da tentativa real Mercado Pago: resposta HTTP `400` do Orders, sem `external_order_id`; correção adiciona e-mail obrigatório para Mercado Pago e valida `@testuser.com` no Sandbox.

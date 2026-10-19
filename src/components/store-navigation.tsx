@@ -1,0 +1,39 @@
+import Link from 'next/link';
+import { CreditCard, Package, ShoppingBag } from 'lucide-react';
+
+type StorePage = 'pdv' | 'products' | 'payments';
+
+type StoreNavigationProps = {
+  activePage: StorePage;
+  canManageStore: boolean;
+};
+
+const navigationItems: { href: string; label: string; page: StorePage; icon: typeof ShoppingBag; managementOnly?: boolean }[] = [
+  { href: '/pdv', label: 'PDV', page: 'pdv', icon: ShoppingBag },
+  { href: '/produtos', label: 'Produtos', page: 'products', icon: Package, managementOnly: true },
+  { href: '/configuracoes/pagamentos', label: 'Pagamentos', page: 'payments', icon: CreditCard, managementOnly: true },
+];
+
+/** Shared store navigation keeps the checkout and management screens easy to reach. */
+export default function StoreNavigation({ activePage, canManageStore }: StoreNavigationProps) {
+  return (
+    <nav aria-label="Navegação da loja" className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+      {navigationItems
+        .filter(({ managementOnly }) => !managementOnly || canManageStore)
+        .map(({ href, label, page, icon: Icon }) => {
+          const active = page === activePage;
+          return (
+            <Link
+              key={page}
+              href={href}
+              aria-current={active ? 'page' : undefined}
+              className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors ${active ? 'bg-white text-orange-700 shadow-sm' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
+            >
+              <Icon aria-hidden="true" size={17} />
+              <span>{label}</span>
+            </Link>
+          );
+        })}
+    </nav>
+  );
+}

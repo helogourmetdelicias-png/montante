@@ -1,10 +1,10 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { Barcode, Check, ChevronDown, CircleAlert, CreditCard, ImagePlus, LoaderCircle, Minus, PackageSearch, Plus, Search, ShoppingBag, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import StoreNavigation from '@/components/store-navigation';
 import { calculateCashChangeCents } from '@/lib/sales/cash-payment';
 
 type Product = {
@@ -434,7 +434,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex min-h-24 max-w-[1600px] items-center justify-between gap-6 px-5 py-4 lg:px-8">
+        <div className="mx-auto flex min-h-24 max-w-[1600px] flex-wrap items-center justify-between gap-4 px-5 py-4 lg:px-8">
           <div className="flex min-w-0 items-center gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-600 text-white shadow-sm"><ShoppingBag size={23} /></div>
             <div className="min-w-0">
@@ -443,10 +443,10 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
               <p className="text-sm text-slate-500">Operador: {operatorName}</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            {canManageBrand && <Link href="/produtos" className="hidden rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 sm:inline-flex">Produtos</Link>}
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <StoreNavigation activePage="pdv" canManageStore={canManageBrand} />
             <div className="hidden rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 sm:block"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500" />Sessão ativa</div>
-            <div className="relative flex h-[76px] w-[190px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 px-3">
+            <div className="relative flex h-[60px] w-[136px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 px-3 sm:h-[76px] sm:w-[190px]">
               {logoUrl ? <img src={logoUrl} alt={`Logo de ${storeName}`} className="max-h-full max-w-full object-contain" /> : <div className="text-center"><ImagePlus className="mx-auto mb-1 text-slate-400" size={22} /><span className="text-xs text-slate-500">Logo da loja</span></div>}
               {canManageBrand && <button type="button" onClick={() => { setLogoDraft(logoUrl); setLogoEditorOpen(true); }} className="absolute inset-0 rounded-xl bg-slate-950/0 text-xs font-medium text-white opacity-0 transition hover:bg-slate-950/55 hover:opacity-100 focus:opacity-100" aria-label="Alterar logo da loja">Alterar logo</button>}
             </div>

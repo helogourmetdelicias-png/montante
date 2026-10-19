@@ -1,10 +1,10 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Box, CircleAlert, LoaderCircle, Plus, Search, X } from 'lucide-react';
+import { Box, CircleAlert, LoaderCircle, Plus, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import StoreNavigation from '@/components/store-navigation';
 
 type Product = {
   id: string;
@@ -157,7 +157,7 @@ export default function ProductCatalog() {
 
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
-      <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-8"><div><Link href="/pdv" className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-orange-700"><ArrowLeft size={16} />Voltar ao PDV</Link><h1 className="text-2xl font-semibold tracking-tight">Catálogo de produtos</h1><p className="mt-1 text-sm text-slate-500">Gerencie preços, estoque e unidades de venda da sua loja.</p></div><Button type="button" onClick={openNewProduct} className="h-11 rounded-xl bg-orange-600 hover:bg-orange-700"><Plus className="mr-2" size={18} />Novo produto</Button></div></header>
+      <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 lg:px-8"><div><h1 className="text-2xl font-semibold tracking-tight">Catálogo de produtos</h1><p className="mt-1 text-sm text-slate-500">Gerencie preços, estoque e unidades de venda da sua loja.</p></div><div className="flex flex-wrap items-center gap-3"><StoreNavigation activePage="products" canManageStore /><Button type="button" onClick={openNewProduct} className="h-11 rounded-xl bg-orange-600 hover:bg-orange-700"><Plus className="mr-2" size={18} />Novo produto</Button></div></div></header>
       <div className="mx-auto max-w-7xl px-5 py-6 lg:px-8">
         <div className="mb-4 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"><Search className="ml-2 text-slate-400" size={18} /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por nome, SKU ou código de barras" className="h-11 border-0 shadow-none focus-visible:ring-orange-500" aria-label="Buscar no catálogo" /><span className="mr-2 whitespace-nowrap text-sm text-slate-500">{products.length} produtos</span></div>
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
