@@ -1,6 +1,6 @@
 import { auth } from '@/auth';
 import { decryptCredentials } from '@/lib/encryption';
-import { MercadoPagoGateway } from '@/lib/payment/gateway-adapter';
+import { getPaymentGateway, type PaymentProvider } from '@/lib/payment/gateway-adapter';
 import { prisma } from '@/lib/prisma';
 import { applyPaymentResult } from '@/lib/sales/payment-result';
 import { runSerializableTransaction } from '@/lib/database/transactions';
@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Reconciles a pending Pix attempt with Mercado Pago before the UI marks the sale complete. */
+/** Reconciles pending online payments with their provider before completing the sale. */
 export async function GET(_request: Request, context: { params: { id: string; attemptId: string } }) {
   const session = await auth();
   const tenantId = session?.user?.tenantId;
@@ -26,17 +26,17 @@ export async function GET(_request: Request, context: { params: { id: string; at
   if (!attempt) return NextResponse.json({ error: 'Tentativa de pagamento não encontrada nesta loja.' }, { status: 404 });
 
   let status = attempt.status.toLowerCase();
-  if (attempt.provider === 'mercadopago' &&
+  if (['mercadopago', 'pagarme'].includes(attempt.provider) &&
     (attempt.status === PaymentAttemptStatus.CREATED || attempt.status === PaymentAttemptStatus.PENDING) &&
     attempt.external_order_id && attempt.gateway_config?.encrypted_credentials) {
     try {
       const credentials = decryptCredentials(attempt.gateway_config.encrypted_credentials);
-      const accessToken = credentials.access_token;
-      if (typeof accessToken !== 'string' || !accessToken) {
-        return NextResponse.json({ error: 'A credencial do Mercado Pago não está disponível.' }, { status: 503 });
+      const providerCredential = attempt.provider === 'mercadopago' ? credentials.access_token : credentials.api_key;
+      if (typeof providerCredential !== 'string' || !providerCredential) {
+        return NextResponse.json({ error: 'A credencial de pagamento não está disponível.' }, { status: 503 });
       }
 
-      const providerStatus = await new MercadoPagoGateway(accessToken).checkStatus(attempt.external_order_id);
+      const providerStatus = await getPaymentGateway(attempt.provider as PaymentProvider, credentials).checkStatus(attempt.external_order_id);
       if (providerStatus !== 'pending') {
         const updated = await runSerializableTransaction((tx) => applyPaymentResult(tx, {
           tenantId,
@@ -48,8 +48,8 @@ export async function GET(_request: Request, context: { params: { id: string; at
         status = updated.attempt.status.toLowerCase();
       }
     } catch (error) {
-      console.error('Falha ao consultar status Pix:', error);
-      return NextResponse.json({ error: 'Não foi possível confirmar o status com o Mercado Pago.' }, { status: 502 });
+      console.error('Falha ao consultar status de pagamento:', error);
+      return NextResponse.json({ error: 'Não foi possível confirmar o status com o provedor.' }, { status: 502 });
     }
   }
 

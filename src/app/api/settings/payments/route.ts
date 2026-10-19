@@ -102,6 +102,9 @@ export async function POST(request: Request) {
   if (input.isActive && input.provider === 'mercadopago' && !effectiveCredentials?.access_token?.trim()) {
     return NextResponse.json({ error: 'Informe o Access Token do Mercado Pago.' }, { status: 400 });
   }
+  if (input.isActive && input.provider === 'pagarme' && !effectiveCredentials?.api_key?.trim()) {
+    return NextResponse.json({ error: 'Informe a chave secreta da API Pagar.me.' }, { status: 400 });
+  }
   if (input.isActive && input.provider === 'pix_manual' && !effectiveCredentials?.pix_key?.trim()) {
     return NextResponse.json({ error: 'Informe a chave Pix da loja.' }, { status: 400 });
   }

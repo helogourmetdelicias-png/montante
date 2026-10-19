@@ -22,8 +22,16 @@ export const PAYMENT_PROVIDER_CATALOG: PaymentProviderDefinition[] = [
     requiresMerchantAuthorization: true,
   },
   {
+    id: 'pagarme',
+    label: 'Pagar.me (Stone)',
+    state: 'available',
+    available: { methods: ['pix'], channels: ['online'] },
+    planned: { methods: ['credit_card', 'debit_card'], channels: ['terminal'] },
+    requiresMerchantAuthorization: true,
+  },
+  {
     id: 'stone_ton',
-    label: 'Stone / Ton',
+    label: 'Stone / Ton (API direta)',
     state: 'planned',
     available: { methods: [], channels: [] },
     planned: { methods: ['credit_card', 'debit_card'], channels: ['terminal'] },

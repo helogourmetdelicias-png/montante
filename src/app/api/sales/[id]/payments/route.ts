@@ -151,6 +151,10 @@ export async function POST(request: Request, context: { params: { id: string } }
       idempotencyKey: input.idempotencyKey,
       description: `Venda ${sale.id}`,
       customerEmail: input.customerEmail,
+      customerName: input.customerName,
+      customerDocument: input.customerDocument,
+      customerPhone: input.customerPhone,
+      customerAddress: input.customerAddress,
     });
     const update = await prisma.$transaction((tx) => applyPaymentResult(tx, {
       tenantId,
@@ -161,6 +165,7 @@ export async function POST(request: Request, context: { params: { id: string } }
     }));
     return NextResponse.json({ attempt: serializeAttempt(update.attempt), saleCompleted: update.saleCompleted, payment: {
       pixQrCode: result.pixQrCode,
+      pixQrCodeUrl: result.pixQrCodeUrl,
       pixCopyPaste: result.pixCopyPaste,
       paymentUrl: result.paymentUrl,
     } }, { status: 201 });

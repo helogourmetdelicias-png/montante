@@ -39,6 +39,7 @@ type PageData = { providers: Provider[]; configurations: Configuration[] };
 
 const credentialFields: Record<string, { name: string; label: string; hint: string }[]> = {
   mercadopago: [{ name: 'access_token', label: 'Access Token', hint: 'Use o token de teste no ambiente sandbox.' }],
+  pagarme: [{ name: 'api_key', label: 'Chave secreta da API (sk_...)', hint: 'Use uma chave de teste no Sandbox. A chave fica protegida e nunca é exibida novamente.' }],
   asaas: [{ name: 'api_key', label: 'Chave de API', hint: 'A integração ainda está em preparação.' }],
   pagbank: [{ name: 'token', label: 'Token', hint: 'A integração ainda está em preparação.' }],
   stone_ton: [
@@ -50,7 +51,8 @@ const credentialFields: Record<string, { name: string; label: string; hint: stri
 
 const methodNames: Record<string, string> = { pix: 'Pix', credit_card: 'Crédito', debit_card: 'Débito' };
 const terminalProviderNames: Record<string, string> = {
-  stone_ton: 'Stone / Ton',
+  pagarme: 'Pagar.me (Stone)',
+  stone_ton: 'Stone / Ton (API direta)',
   pagbank: 'PagBank',
   mercadopago: 'Mercado Pago Point',
   external_terminal: 'Outra maquininha (manual)',

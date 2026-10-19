@@ -4,7 +4,7 @@
  * O PDV sempre chama: getPaymentGateway(provider, credentials).charge(request)
  */
 
-export type PaymentProvider = 'mercadopago' | 'stone_ton' | 'asaas' | 'pagbank' | 'pix_manual' | 'external_terminal';
+export type PaymentProvider = 'mercadopago' | 'pagarme' | 'stone_ton' | 'asaas' | 'pagbank' | 'pix_manual' | 'external_terminal';
 export type PaymentMethod = 'pix' | 'credit_card' | 'debit_card';
 export type PaymentChannel = 'online' | 'terminal' | 'external_terminal';
 
@@ -20,6 +20,15 @@ export interface ChargeRequest {
   /** CPF ou CNPJ do cliente */
   customerDocument?: string;
   customerEmail?: string;
+  customerPhone?: string;
+  customerAddress?: {
+    zipCode: string;
+    street: string;
+    number: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+  };
 }
 
 export interface ChargeResponse {
@@ -28,6 +37,7 @@ export interface ChargeResponse {
   channel: PaymentChannel;
   externalId?: string;
   pixQrCode?: string;
+  pixQrCodeUrl?: string;
   pixCopyPaste?: string;
   paymentUrl?: string;
   status: 'pending' | 'approved' | 'declined' | 'cancelled' | 'error';
@@ -173,6 +183,98 @@ export class MercadoPagoGateway implements PaymentGateway {
   }
 }
 
+/** Pagar.me v5 adapter for online Pix charges (API key is stored encrypted per tenant). */
+export class PagarMeGateway implements PaymentGateway {
+  readonly provider: PaymentProvider = 'pagarme';
+
+  constructor(
+    private readonly apiKey: string,
+    private readonly apiBaseUrl = 'https://api.pagar.me/core/v5',
+  ) {
+    if (!apiKey.trim()) throw new Error('Chave secreta do Pagar.me não configurada.');
+  }
+
+  private get authorization() {
+    return `Basic ${Buffer.from(`${this.apiKey}:`).toString('base64')}`;
+  }
+
+  async charge(request: ChargeRequest): Promise<ChargeResponse> {
+    if (request.method !== 'pix' || request.channel !== 'online') {
+      throw new Error('Pagar.me está habilitado para Pix online; cartões físicos devem ser cobrados na maquininha.');
+    }
+    if (!Number.isSafeInteger(request.amount) || request.amount < 1) {
+      throw new Error('O valor da cobrança deve ser informado em centavos inteiros.');
+    }
+    if (!request.customerName?.trim() || !request.customerEmail || !request.customerDocument || !request.customerPhone || !request.customerAddress) {
+      throw new Error('Pagar.me exige nome, e-mail, CPF/CNPJ, telefone e endereço do comprador para gerar o Pix.');
+    }
+
+    const idempotencyKey = request.idempotencyKey ?? crypto.randomUUID();
+    const document = request.customerDocument.replace(/\D/g, '');
+    const phone = request.customerPhone.replace(/\D/g, '');
+    const response = await fetch(`${this.apiBaseUrl}/orders`, {
+      method: 'POST',
+      headers: {
+        Authorization: this.authorization,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify({
+        code: idempotencyKey,
+        items: [{ amount: request.amount, description: request.description.slice(0, 64), quantity: 1 }],
+        customer: {
+          name: request.customerName.trim(),
+          email: request.customerEmail,
+          document,
+          type: document.length > 11 ? 'company' : 'individual',
+          phones: { mobile_phone: { country_code: '55', area_code: phone.slice(0, 2), number: phone.slice(2) } },
+          address: {
+            country: 'BR',
+            zip_code: request.customerAddress.zipCode.replace(/\D/g, ''),
+            line_1: `${request.customerAddress.number}, ${request.customerAddress.street}, ${request.customerAddress.neighborhood}`.slice(0, 255),
+            city: request.customerAddress.city,
+            state: request.customerAddress.state.toUpperCase(),
+          },
+        },
+        payments: [{ payment_method: 'pix', pix: { expires_in: 1800 } }],
+        closed: true,
+      }),
+      cache: 'no-store',
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = typeof data.message === 'string' ? data.message : typeof data.errors?.[0]?.message === 'string' ? data.errors[0].message : '';
+      throw new Error(`Pagar.me retornou erro ${response.status}${detail ? ` (${detail})` : ''}.`);
+    }
+
+    const transaction = data.last_transaction ?? data.charges?.[0]?.last_transaction;
+    if (!data.id || !transaction?.qr_code) throw new Error('Pagar.me criou o pedido sem retornar o código Pix esperado.');
+    return {
+      provider: this.provider,
+      method: 'pix',
+      channel: 'online',
+      externalId: String(data.id),
+      pixCopyPaste: String(transaction.qr_code),
+      pixQrCodeUrl: typeof transaction.qr_code_url === 'string' ? transaction.qr_code_url : undefined,
+      status: transaction.status === 'paid' || data.status === 'paid' ? 'approved' : 'pending',
+      rawResponse: data,
+    };
+  }
+
+  async checkStatus(externalId: string): Promise<'pending' | 'approved' | 'declined' | 'cancelled' | 'error'> {
+    const response = await fetch(`${this.apiBaseUrl}/orders/${encodeURIComponent(externalId)}`, {
+      headers: { Authorization: this.authorization },
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error(`Pagar.me retornou erro ${response.status} ao consultar o pedido.`);
+    const data = await response.json();
+    const transactionStatus = data.last_transaction?.status ?? data.charges?.[0]?.last_transaction?.status;
+    if (transactionStatus === 'paid' || data.status === 'paid') return 'approved';
+    if (['canceled', 'cancelled', 'failed', 'chargedback'].includes(transactionStatus) || ['canceled', 'cancelled', 'failed'].includes(data.status)) return 'cancelled';
+    return 'pending';
+  }
+}
+
 export class AsaasGateway implements PaymentGateway {
   readonly provider: PaymentProvider = 'asaas';
 
@@ -260,6 +362,8 @@ export function getPaymentGateway(
       );
     case 'mercadopago':
       return new MercadoPagoGateway(credentials.access_token as string);
+    case 'pagarme':
+      return new PagarMeGateway(credentials.api_key as string);
     case 'asaas':
       return new AsaasGateway(
         credentials.api_key as string,

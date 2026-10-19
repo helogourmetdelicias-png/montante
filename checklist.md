@@ -8,6 +8,9 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 
 ## Feito e validado
 
+- [~] Adapter Pix Pagar.me (Stone) implementado com configuração por tenant, credencial criptografada, criação idempotente de pedido Pix, dados obrigatórios do comprador e polling automático do status no PDV. TypeScript e build de produção passaram. Pendentes chave secreta Sandbox, teste com API do lojista e homologação; a imagem fornecida tinha as chaves mascaradas.
+- [~] Guia `docs/pagarme-pix.md` criado. A integração cobre Pix online; cartão presencial permanece na maquininha física e não foi implementado via navegador. Não foi executado `npm test` nesta alteração.
+
 - [~] Navegação entre PDV, Produtos e Configurações ajustada para nomear claramente o acesso à área de configurações no menu. Alteração local em validação; produção ainda precisa de novo deploy e conferência visual do usuário.
 
 - [x] Schema Prisma inicial criado para tenants, usuários, produtos, vendas, itens, provedores de pagamento, terminais, tentativas de pagamento e cobranças SaaS.
@@ -59,7 +62,7 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 - [x] Cartão digitado na web e testes de SDK/tokenização removidos do escopo: o PDV é de balcão; pagamentos previstos são Dinheiro, Pix e Maquininha Física quando houver equipamento.
 - [x] Implementado webhook Mercado Pago Orders Pix com assinatura HMAC, consulta autenticada do estado da Order, idempotência e atualização transacional. A homologação de entrega real depende da chave cadastrada e da URL HTTPS pública; simulação não substitui liquidação do provedor.
 - [ ] Implementar OAuth/conexão de contas dos lojistas quando disponível, em vez de depender de cópia manual de credenciais.
-- [ ] Implementar e homologar adapters PagBank e Stone/Ton após obter documentação, credenciais e modelo de terminal compatível. Asaas também segue pendente.
+- [~] Pagar.me (Stone) tem adapter Pix online em implementação; confirmar Sandbox e homologar com chave válida da conta. API direta Ton, cartão na maquininha física, PagBank e Asaas ainda aguardam integração/documentação/credenciais conforme aplicável.
 - [~] Parear e testar a maquininha física no ambiente da loja quando Pinpad/SmartPOS, modelo, software e credenciais estiverem disponíveis.
 - [ ] Testar cancelamento, expiração, reembolso e conciliação; não persistir número de cartão, CVV ou senha.
 

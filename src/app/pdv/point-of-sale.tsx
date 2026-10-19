@@ -47,6 +47,15 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   const [canSimulatePixApproval, setCanSimulatePixApproval] = useState(false);
   const [selectedOption, setSelectedOption] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerDocument, setCustomerDocument] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerZipCode, setCustomerZipCode] = useState('');
+  const [customerStreet, setCustomerStreet] = useState('');
+  const [customerNumber, setCustomerNumber] = useState('');
+  const [customerNeighborhood, setCustomerNeighborhood] = useState('');
+  const [customerCity, setCustomerCity] = useState('');
+  const [customerState, setCustomerState] = useState('');
   const [logoUrl, setLogoUrl] = useState(initialLogoUrl);
   const [logoEditorOpen, setLogoEditorOpen] = useState(false);
   const [logoDraft, setLogoDraft] = useState(initialLogoUrl);
@@ -55,7 +64,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   const [message, setMessage] = useState('');
   const [saleId, setSaleId] = useState('');
   const [attemptId, setAttemptId] = useState('');
-  const [payment, setPayment] = useState<{ pixQrCode?: string; pixCopyPaste?: string; paymentUrl?: string } | null>(null);
+  const [payment, setPayment] = useState<{ pixQrCode?: string; pixQrCodeUrl?: string; pixCopyPaste?: string; paymentUrl?: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('');
   const [saleTotal, setSaleTotal] = useState<number | null>(null);
@@ -72,6 +81,8 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   const selectedPayment = paymentOptions.find((option) => option.provider + option.method + option.terminalId === selectedOption);
   const needsCustomerEmail = selectedPayment?.provider === 'mercadopago' || selectedPayment?.provider === 'split';
   const customerEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail);
+  const needsPagarmeCustomer = selectedPayment?.provider === 'pagarme';
+  const pagarmeCustomerValid = Boolean(customerName.trim() && customerEmailValid && customerDocument.replace(/\D/g, '').length >= 11 && customerPhone.replace(/\D/g, '').length >= 10 && customerZipCode.replace(/\D/g, '').length === 8 && customerStreet.trim() && customerNumber.trim() && customerNeighborhood.trim() && customerCity.trim() && customerState.trim().length === 2);
   const sandboxEmailValid = selectedPayment?.environment !== 'sandbox' || customerEmail.toLowerCase().endsWith('@testuser.com');
   const awaitingPayment = Boolean(saleId && attemptId && ['created', 'pending'].includes(paymentStatus));
   const cashDue = Boolean(saleId && ((selectedPayment?.provider === 'cash' && paymentStatus === 'cash_due') ||
@@ -122,7 +133,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
 
   // Polls the provider so Pix is never treated as paid based only on QR generation.
   useEffect(() => {
-    if (!awaitingPayment || !saleId || !attemptId || !['mercadopago', 'split'].includes(selectedPayment?.provider ?? '')) return;
+    if (!awaitingPayment || !saleId || !attemptId || !['mercadopago', 'pagarme', 'split'].includes(selectedPayment?.provider ?? '')) return;
     let active = true;
     const checkStatus = async () => {
       try {
@@ -131,7 +142,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
         if (!active || !response.ok) return;
         if (result.status === 'approved' && result.saleCompleted) {
           setPaymentStatus('approved');
-          setMessage('Pix confirmado pelo Mercado Pago. Venda concluída.');
+          setMessage('Pix confirmado pelo provedor. Venda concluída.');
         } else if (result.status === 'approved') {
           setPaymentStatus('partially_paid');
           setMessage(`Pix recebido; saldo ainda em aberto: ${money(Number(result.remainingAmount))}.`);
@@ -209,6 +220,13 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
         channel: option.channel,
         terminalId: option.terminalId,
         ...(needsCustomerEmail ? { customerEmail } : {}),
+        ...(needsPagarmeCustomer ? {
+          customerName,
+          customerEmail,
+          customerDocument,
+          customerPhone,
+          customerAddress: { zipCode: customerZipCode, street: customerStreet, number: customerNumber, neighborhood: customerNeighborhood, city: customerCity, state: customerState },
+        } : {}),
       }),
     });
     const result = await response.json();
@@ -228,7 +246,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   }
 
   async function startCheckout() {
-    if (!cart.length || !selectedPayment || busy || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid))) return;
+    if (!cart.length || !selectedPayment || busy || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsPagarmeCustomer && !pagarmeCustomerValid)) return;
     setBusy(true);
     setMessage('');
     try {
@@ -496,7 +514,8 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
             <label className="mb-2 block text-sm font-medium" htmlFor="payment-method">Forma de pagamento</label>
             {paymentOptions.length ? <div className="relative"><select id="payment-method" value={selectedOption} onChange={(event) => setSelectedOption(event.target.value)} disabled={!paymentEditable} className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-9 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-50">{paymentOptions.map((option) => { const value = option.provider + option.method + option.terminalId; const methodLabel = option.provider === 'split' ? 'Dividido' : option.method === 'pix' ? 'Pix' : option.method === 'cash' ? 'Dinheiro' : option.method === 'credit_card' ? 'Crédito' : 'Débito'; return <option key={value} value={value}>{option.label} · {methodLabel}</option>; })}</select><ChevronDown className="pointer-events-none absolute right-3 top-3 text-slate-400" size={18} /></div> : <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Nenhuma forma de pagamento está ativa. Peça ao responsável para configurar uma opção.</p>}
             {needsCustomerEmail && <label className="mt-3 block text-sm font-medium" htmlFor="customer-email">E-mail do comprador<Input id="customer-email" type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder={selectedPayment.environment === 'sandbox' ? 'comprador@testuser.com' : 'comprador@exemplo.com'} disabled={!paymentEditable} className="mt-2 h-10" required />{selectedPayment.environment === 'sandbox' && <span className="mt-1 block text-xs font-normal text-slate-500">No Sandbox, use um e-mail de teste com final @testuser.com.</span>}</label>}
-            <Button type="button" onClick={startCheckout} disabled={!cart.length || !selectedPayment || busy || total <= 0 || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid))} className="mt-4 h-12 w-full rounded-xl bg-orange-600 text-base font-semibold hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={18} /> : <CreditCard className="mr-2" size={18} />}{saleId ? 'Tentar pagamento' : `Cobrar ${money(total)}`}</Button>
+            {needsPagarmeCustomer && <fieldset className="mt-3 space-y-3 rounded-xl border border-slate-200 p-3"><legend className="px-1 text-sm font-medium">Dados para cobrança Pix Pagar.me</legend><p className="text-xs text-slate-500">A API pede identificação e endereço do comprador. Esses dados são enviados ao provedor apenas para criar a cobrança.</p><div className="grid grid-cols-2 gap-2"><Input autoComplete="name" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Nome completo" aria-label="Nome completo do comprador" className="col-span-2 h-10" /><Input type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="E-mail" aria-label="E-mail do comprador" className="h-10" /><Input value={customerDocument} onChange={(event) => setCustomerDocument(event.target.value)} placeholder="CPF/CNPJ" aria-label="CPF ou CNPJ do comprador" className="h-10" /><Input type="tel" autoComplete="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Celular com DDD" aria-label="Celular do comprador" className="h-10" /><Input autoComplete="postal-code" value={customerZipCode} onChange={(event) => setCustomerZipCode(event.target.value)} placeholder="CEP" aria-label="CEP do comprador" className="h-10" /><Input autoComplete="address-level2" value={customerCity} onChange={(event) => setCustomerCity(event.target.value)} placeholder="Cidade" aria-label="Cidade do comprador" className="h-10" /><Input autoComplete="address-line1" value={customerStreet} onChange={(event) => setCustomerStreet(event.target.value)} placeholder="Rua" aria-label="Rua do comprador" className="h-10" /><Input value={customerNumber} onChange={(event) => setCustomerNumber(event.target.value)} placeholder="Número" aria-label="Número do endereço" className="h-10" /><Input value={customerNeighborhood} onChange={(event) => setCustomerNeighborhood(event.target.value)} placeholder="Bairro" aria-label="Bairro do comprador" className="h-10" /><Input value={customerState} onChange={(event) => setCustomerState(event.target.value.toUpperCase().slice(0, 2))} placeholder="UF" aria-label="Estado do comprador" maxLength={2} className="h-10" /></div></fieldset>}
+            <Button type="button" onClick={startCheckout} disabled={!cart.length || !selectedPayment || busy || total <= 0 || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsPagarmeCustomer && !pagarmeCustomerValid)} className="mt-4 h-12 w-full rounded-xl bg-orange-600 text-base font-semibold hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={18} /> : <CreditCard className="mr-2" size={18} />}{saleId ? 'Tentar pagamento' : `Cobrar ${money(total)}`}</Button>
             {saleId && !awaitingPayment && <button type="button" onClick={() => void cancelSale()} disabled={busy} className="mt-2 w-full py-1 text-sm font-medium text-slate-500 hover:text-red-600">Cancelar venda e liberar estoque</button>}
             <p className="mt-2 text-center text-xs text-slate-500">O estoque é reservado ao iniciar a cobrança.</p>
           </div>}
@@ -528,7 +547,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
           {awaitingPayment && <div className="space-y-3 px-5 pb-5">
             <div className="rounded-xl border border-orange-100 bg-orange-50 p-4 text-center"><p className="font-semibold text-orange-900">Aguardando pagamento</p><p className="mt-1 text-sm text-orange-800">{selectedPayment?.provider === 'split' ? 'Pix + dinheiro' : `${selectedPayment?.label} · ${selectedPayment?.method === 'pix' ? 'Pix' : 'Cartão'}`}</p>
               {selectedPayment?.provider === 'split' && cashApplied !== null && <div className="my-3 rounded-lg bg-white p-3 text-left text-sm"><div className="flex justify-between"><span>Parcela paga em dinheiro</span><strong>{money(cashApplied / 100)}</strong></div><div className="mt-1 flex justify-between"><span>Troco em dinheiro</span><strong>{money((cashChange ?? 0) / 100)}</strong></div><div className="mt-1 flex justify-between"><span>Restante no Pix</span><strong>{money(Number(paymentAmount))}</strong></div></div>}
-              {payment?.pixQrCode && <img src={`data:image/png;base64,${payment.pixQrCode}`} alt="QR Code Pix para pagamento" className="mx-auto my-4 h-48 w-48 rounded-lg bg-white p-2" />}
+              {(payment?.pixQrCode || payment?.pixQrCodeUrl) && <img src={payment.pixQrCode ? `data:image/png;base64,${payment.pixQrCode}` : payment.pixQrCodeUrl} alt="QR Code Pix para pagamento" className="mx-auto my-4 h-48 w-48 rounded-lg bg-white p-2" />}
               {payment?.pixCopyPaste && <div className="mt-3 text-left"><label htmlFor="pix-copy" className="text-xs font-medium text-orange-900">Chave ou código Pix</label><textarea id="pix-copy" readOnly value={payment.pixCopyPaste} className="mt-1 min-h-16 w-full resize-none rounded-lg border border-orange-200 bg-white p-2 text-xs text-slate-700" /></div>}
               {payment?.paymentUrl && <a href={payment.paymentUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-semibold text-orange-800 underline">Abrir pagamento</a>}
               {!payment && <p className="mt-2 text-sm text-orange-800">Confirme o recebimento no provedor ou na maquininha.</p>}
