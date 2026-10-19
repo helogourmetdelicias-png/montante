@@ -8,6 +8,8 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 
 ## Feito e validado
 
+- [~] Navegação entre PDV, Produtos e Configurações ajustada para nomear claramente o acesso à área de configurações no menu. Alteração local em validação; produção ainda precisa de novo deploy e conferência visual do usuário.
+
 - [x] Schema Prisma inicial criado para tenants, usuários, produtos, vendas, itens, provedores de pagamento, terminais, tentativas de pagamento e cobranças SaaS.
 - [x] Migration inicial aplicada ao Supabase, conforme registrado no histórico desta tarefa.
 - [x] Cadastro inicial cria uma loja e seu primeiro usuário responsável com senha armazenada em hash.
@@ -178,7 +180,7 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 - [x] Revalidação local após o deploy informado: `npm test` passou (13/13), `npx tsc --noEmit --incremental false` passou e `npm run build` passou incluindo `prisma generate` e build otimizada do Next.js.
 - [x] Decisão operacional tomada: usar cron-job.org a cada 15 minutos no plano Vercel Hobby e desativar o Cron nativo da Vercel para permitir deploys.
 - [x] Bloco `crons` removido de `vercel.json`; a configuração fica sem agenda nativa. A rota `GET`/`POST /api/cron/release-expired-sales`, proteção `Authorization: Bearer <CRON_SECRET>`, idempotência e lote máximo de 100 vendas permanecem intactos.
-- [x] Navegação compartilhada entre PDV, Produtos e Pagamentos implementada no commit `379d6db` e publicada no deploy de produção `montante-um2r` disparado pelo commit `7952568`; o check da Vercel para `montante-um2r-seven.vercel.app` confirmou sucesso. O menu de gestão fica condicionado ao perfil `owner`/`admin`.
+- [~] Navegação compartilhada entre PDV, Produtos e Pagamentos foi publicada anteriormente, mas o usuário informou que em produção só vê Produtos e não consegue navegar. Ajuste local adiciona rótulo explícito “Configurações”; pendente publicar e confirmar visualmente no site. O menu de gestão continua condicionado ao perfil `owner`/`admin`.
 - [x] O check de deploy da Vercel para `379d6db` falhou; esse deployment histórico não publicou a navegação. O motivo foi corrigido no commit atual ao remover a agenda nativa incompatível com o plano Hobby.
 - [x] Causa da falha do deploy documentada: o check Vercel de `379d6db` falhou e apontou para a limitação do plano Hobby, que aceita apenas uma execução Cron por dia; a expressão `*/15 * * * *` impedia o deploy. Referência: https://vercel.com/docs/cron-jobs/usage-and-pricing.
 - [x] Guia `docs/cron-expired-sales.md` atualizado para a escolha cron-job.org: URL pública, `POST`, agenda `*/15 * * * *`, cabeçalho Bearer, verificação HTTP/logs e esclarecimento de que o job externo precisa ser criado na conta do serviço.

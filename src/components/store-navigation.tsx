@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { CreditCard, Package, ShoppingBag } from 'lucide-react';
+import { CreditCard, Package, Settings, ShoppingBag } from 'lucide-react';
 
-type StorePage = 'pdv' | 'products' | 'payments';
+type StorePage = 'pdv' | 'products' | 'settings' | 'payments';
 
 type StoreNavigationProps = {
   activePage: StorePage;
@@ -11,6 +11,7 @@ type StoreNavigationProps = {
 const navigationItems: { href: string; label: string; page: StorePage; icon: typeof ShoppingBag; managementOnly?: boolean }[] = [
   { href: '/pdv', label: 'PDV', page: 'pdv', icon: ShoppingBag },
   { href: '/produtos', label: 'Produtos', page: 'products', icon: Package, managementOnly: true },
+  { href: '/configuracoes/pagamentos', label: 'Configurações', page: 'settings', icon: Settings, managementOnly: true },
   { href: '/configuracoes/pagamentos', label: 'Pagamentos', page: 'payments', icon: CreditCard, managementOnly: true },
 ];
 

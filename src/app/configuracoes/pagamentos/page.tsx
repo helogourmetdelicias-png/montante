@@ -186,7 +186,7 @@ export default function PaymentSettingsPage() {
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Pagamentos</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Configure os provedores da sua loja. Cada estabelecimento mantém suas próprias credenciais.</p>
           <div className="mt-4">
-            <StoreNavigation activePage="payments" canManageStore={Boolean(pageData)} />
+            <StoreNavigation activePage="settings" canManageStore={Boolean(pageData)} />
           </div>
         </div>
         <Button type="button" variant="outline" onClick={() => void loadData()} disabled={loading || busy}>
