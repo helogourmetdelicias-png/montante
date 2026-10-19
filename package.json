@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "test": "node --experimental-strip-types --test tests/sales-reservations.test.mjs tests/mercado-pago-cancel.test.mjs tests/mercadopago-webhook.test.mjs tests/cron-auth.test.mjs",
+    "test": "node --experimental-strip-types --test tests/sales-reservations.test.mjs tests/mercado-pago-cancel.test.mjs tests/mercadopago-webhook.test.mjs tests/cron-auth.test.mjs tests/cash-register.test.mjs",
     "test:reservations:db": "node --env-file=.env --experimental-strip-types tests/sales-reservations.database.mjs",
     "test:tenant-isolation": "node --env-file=.env tests/tenant-isolation.integration.mjs",
     "lint": "next lint",

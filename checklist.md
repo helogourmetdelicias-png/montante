@@ -8,10 +8,16 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 
 ## Feito e validado
 
-- [~] Adapter Pix Pagar.me (Stone) implementado com configuração por tenant, credencial criptografada, criação idempotente de pedido Pix, dados obrigatórios do comprador e polling automático do status no PDV. TypeScript e build de produção passaram. Pendentes chave secreta Sandbox, teste com API do lojista e homologação; a imagem fornecida tinha as chaves mascaradas.
-- [~] Guia `docs/pagarme-pix.md` criado. A integração cobre Pix online; cartão presencial permanece na maquininha física e não foi implementado via navegador. Não foi executado `npm test` nesta alteração.
+- [x] Módulo inicial de Caixa e Relatórios gerenciais implementado localmente: abertura/fechamento por operador e tenant, fundo de troco, suprimento/sangria, conferência, bloqueio de vendas sem turno e bloqueio de fechamento com vendas/cobranças pendentes; API e telas de relatório restritas a `owner/admin`, filtradas por tenant e intervalo comercial de São Paulo.
+- [x] Migration `20261019000100_cash_register_and_reports` aplicada no Supabase de produção com `npx prisma migrate deploy`; `npx prisma migrate status` confirmou o schema atualizado. Consultas diretas confirmaram `CashRegisterSession`, `CashRegisterMovement`, a coluna `Sale.cash_register_session_id` e o registro concluído em `_prisma_migrations`.
+- [x] Qualidade do módulo Caixa/Relatórios: `npx prisma validate`, geração do Prisma Client, `npx tsc --noEmit --incremental false`, `npm test` (15/15) e `npm run build` passaram nesta publicação. Os testes cobrem cálculo do saldo esperado do caixa, entradas/saídas e isolamento tenant/sessão.
+- [~] Código do módulo Caixa/Relatórios pronto para publicação em `main`; validações locais passaram. Aguardando push e confirmação do deploy de produção na Vercel.
 
-- [~] Navegação entre PDV, Produtos e Configurações ajustada para nomear claramente o acesso à área de configurações no menu. Alteração local em validação; produção ainda precisa de novo deploy e conferência visual do usuário.
+- [~] Adapter Pix Pagar.me (Stone) implementado e publicado no commit `2cd510b`; deploy Vercel para `montante-um2r-seven.vercel.app` concluído. Inclui configuração por tenant, credencial criptografada, pedido Pix idempotente, dados do comprador e consulta automática de status no PDV. TypeScript e build de produção passaram. Falta cadastrar chave Sandbox, testar com a API da loja e homologar; a imagem fornecida tinha as chaves mascaradas.
+- [~] Guia `docs/pagarme-pix.md` criado. A integração cobre Pix online; cartão presencial permanece na maquininha física. `npm test` não foi executado nesta alteração.
+- [~] Chave Pagar.me não exige variável global própria na Vercel: é cadastrada em **Configurações → Pagamentos** e armazenada criptografada por loja. A variável de ambiente `ENCRYPTION_KEY` continua obrigatória na Vercel para proteger essa credencial; ainda falta confirmar no painel se ela está configurada.
+
+- [~] Navegação entre PDV, Produtos e Configurações foi publicada no commit `4859224`; deploy da aplicação `montante-um2r` concluiu. Falta confirmação visual do usuário no navegador.
 
 - [x] Schema Prisma inicial criado para tenants, usuários, produtos, vendas, itens, provedores de pagamento, terminais, tentativas de pagamento e cobranças SaaS.
 - [x] Migration inicial aplicada ao Supabase, conforme registrado no histórico desta tarefa.
@@ -62,7 +68,7 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 - [x] Cartão digitado na web e testes de SDK/tokenização removidos do escopo: o PDV é de balcão; pagamentos previstos são Dinheiro, Pix e Maquininha Física quando houver equipamento.
 - [x] Implementado webhook Mercado Pago Orders Pix com assinatura HMAC, consulta autenticada do estado da Order, idempotência e atualização transacional. A homologação de entrega real depende da chave cadastrada e da URL HTTPS pública; simulação não substitui liquidação do provedor.
 - [ ] Implementar OAuth/conexão de contas dos lojistas quando disponível, em vez de depender de cópia manual de credenciais.
-- [~] Pagar.me (Stone) tem adapter Pix online em implementação; confirmar Sandbox e homologar com chave válida da conta. API direta Ton, cartão na maquininha física, PagBank e Asaas ainda aguardam integração/documentação/credenciais conforme aplicável.
+- [~] Pagar.me (Stone) tem adapter Pix online publicado; confirmar Sandbox e homologar com chave válida da conta. API direta Ton, cartão na maquininha física, PagBank e Asaas ainda aguardam integração/documentação/credenciais conforme aplicável.
 - [~] Parear e testar a maquininha física no ambiente da loja quando Pinpad/SmartPOS, modelo, software e credenciais estiverem disponíveis.
 - [ ] Testar cancelamento, expiração, reembolso e conciliação; não persistir número de cartão, CVV ou senha.
 

@@ -1,5 +1,6 @@
 import { auth } from '@/auth';
 import { runSerializableTransaction } from '@/lib/database/transactions';
+import { prisma } from '@/lib/prisma';
 import { completeCashPayment } from '@/lib/sales/cash-payment';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -23,11 +24,22 @@ const cashPaymentSchema = z.object({
 export async function POST(request: Request, context: { params: { id: string } }) {
   const session = await auth();
   const tenantId = session?.user?.tenantId;
-  if (!tenantId) return NextResponse.json({ error: 'Entre na sua conta para concluir a venda.' }, { status: 401 });
+  const userId = session?.user?.id;
+  if (!tenantId || !userId) return NextResponse.json({ error: 'Entre na sua conta para concluir a venda.' }, { status: 401 });
 
   const parsed = cashPaymentSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Confira o valor recebido em dinheiro.' }, { status: 400 });
   const receivedCents = Math.round(parsed.data.amountReceived * 100);
+
+  const saleRegister = await prisma.sale.findFirst({
+    where: { id: context.params.id, tenant_id: tenantId },
+    select: { cash_register_session_id: true },
+  });
+  const openRegister = saleRegister?.cash_register_session_id ? await prisma.cashRegisterSession.findFirst({
+    where: { id: saleRegister.cash_register_session_id, tenant_id: tenantId, user_id: userId, status: 'OPEN' },
+    select: { id: true },
+  }) : null;
+  if (!openRegister) return NextResponse.json({ error: 'O caixa desta venda foi fechado. Abra um novo turno antes de receber dinheiro.' }, { status: 409 });
 
   try {
     const result = await runSerializableTransaction((tx) => completeCashPayment(tx, {

@@ -126,7 +126,7 @@ export async function completeCashPayment(tx: Transaction, input: CompleteCashPa
     data: {
       amount_received: (sale.amount_received ?? new Prisma.Decimal(0)).add(amountReceived),
       change_amount: (sale.change_amount ?? new Prisma.Decimal(0)).add(changeAmount),
-      ...(remainingCents === 0 ? { status: 'completed', payment_method: 'cash', expires_at: null } : {}),
+      ...(remainingCents === 0 ? { status: 'completed', payment_method: 'cash', expires_at: null, sold_at: now } : {}),
     },
   });
   if (update.count !== 1) throw new Error('A venda não pôde ser atualizada após registrar o dinheiro.');

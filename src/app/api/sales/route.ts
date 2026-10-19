@@ -94,7 +94,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await auth();
   const tenantId = session?.user?.tenantId;
-  if (!tenantId) return NextResponse.json({ error: 'Entre na sua conta para iniciar uma venda.' }, { status: 401 });
+  const userId = session?.user?.id;
+  if (!tenantId || !userId) return NextResponse.json({ error: 'Entre na sua conta para iniciar uma venda.' }, { status: 401 });
 
   const parsed = createSaleSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -123,6 +124,13 @@ export async function POST(request: Request) {
         if (existing.request_hash !== requestHash) throw new SaleInputError('Esta chave de idempotência já foi usada com outros itens.', 409);
         return { sale: existing, replayed: true };
       }
+
+      // Associate every new sale with the operator's active drawer and block checkout without one.
+      const cashRegister = await tx.cashRegisterSession.findFirst({
+        where: { tenant_id: tenantId, user_id: userId, status: 'OPEN' },
+        select: { id: true },
+      });
+      if (!cashRegister) throw new SaleInputError('Abra o caixa antes de iniciar uma venda.', 409);
 
       const productIds = items.map((item) => item.productId);
       const products = await tx.product.findMany({
@@ -179,6 +187,7 @@ export async function POST(request: Request) {
           idempotency_key: input.idempotencyKey,
           request_hash: requestHash,
           expires_at: expiresAt,
+          cash_register_session_id: cashRegister.id,
           items: { create: saleItems },
         },
         include: { items: true },

@@ -68,6 +68,7 @@ export async function applyPaymentResult(tx: Transaction, input: ApplyPaymentRes
           status: 'completed',
           payment_method: cashPayment ? 'cash+pix' : input.method,
           expires_at: null,
+          sold_at: now,
         },
       });
       saleCompleted = completion.count === 1;

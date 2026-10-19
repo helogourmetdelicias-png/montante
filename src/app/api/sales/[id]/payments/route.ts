@@ -39,13 +39,14 @@ export async function POST(request: Request, context: { params: { id: string } }
   const session = await auth();
   const tenantId = session?.user?.tenantId;
   if (!tenantId) return NextResponse.json({ error: 'Entre na sua conta para iniciar o pagamento.' }, { status: 401 });
+  const userId = session.user.id;
 
   const parsed = createPaymentAttemptSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Dados do pagamento inválidos.', details: parsed.error.flatten() }, { status: 400 });
   const input = parsed.data;
   const sale = await prisma.sale.findFirst({
     where: { id: context.params.id, tenant_id: tenantId },
-    select: { id: true, status: true, total_amount: true, expires_at: true },
+    select: { id: true, status: true, total_amount: true, expires_at: true, cash_register_session_id: true },
   });
   if (!sale) return NextResponse.json({ error: 'Venda não encontrada nesta loja.' }, { status: 404 });
   const existing = await prisma.paymentAttempt.findFirst({
@@ -61,6 +62,12 @@ export async function POST(request: Request, context: { params: { id: string } }
   if (sale.status !== 'pending' || (sale.expires_at && sale.expires_at <= new Date())) {
     return NextResponse.json({ error: 'A venda não está mais disponível para pagamento.' }, { status: 409 });
   }
+
+  const openRegister = await prisma.cashRegisterSession.findFirst({
+    where: { id: sale.cash_register_session_id ?? undefined, tenant_id: tenantId, user_id: userId, status: 'OPEN' },
+    select: { id: true },
+  });
+  if (!openRegister) return NextResponse.json({ error: 'O caixa desta venda foi fechado. Abra um novo turno antes de cobrar.' }, { status: 409 });
 
   const pendingAttempt = await prisma.paymentAttempt.findFirst({
     where: { tenant_id: tenantId, sale_id: sale.id, status: { in: [PaymentAttemptStatus.CREATED, PaymentAttemptStatus.PENDING] } },

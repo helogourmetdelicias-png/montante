@@ -16,14 +16,21 @@ export async function GET(_request: Request, context: { params: { id: string; at
   const tenantId = session?.user?.tenantId;
   if (!tenantId) return NextResponse.json({ error: 'Entre na sua conta para consultar o pagamento.' }, { status: 401 });
 
+
   const attempt = await prisma.paymentAttempt.findFirst({
     where: { id: context.params.attemptId, sale_id: context.params.id, tenant_id: tenantId },
     include: {
       gateway_config: { select: { encrypted_credentials: true } },
-      sale: { select: { status: true, total_amount: true } },
+      sale: { select: { status: true, total_amount: true, cash_register_session_id: true } },
     },
   });
   if (!attempt) return NextResponse.json({ error: 'Tentativa de pagamento não encontrada nesta loja.' }, { status: 404 });
+
+  const openRegister = attempt.sale.cash_register_session_id ? await prisma.cashRegisterSession.findFirst({
+    where: { id: attempt.sale.cash_register_session_id, tenant_id: tenantId, user_id: session.user.id, status: 'OPEN' },
+    select: { id: true },
+  }) : null;
+  if (!openRegister && attempt.status !== PaymentAttemptStatus.APPROVED) return NextResponse.json({ error: 'O caixa desta venda foi fechado. Abra um novo turno para acompanhar a cobrança.' }, { status: 409 });
 
   let status = attempt.status.toLowerCase();
   if (['mercadopago', 'pagarme'].includes(attempt.provider) &&

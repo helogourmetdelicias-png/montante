@@ -21,7 +21,7 @@ type Product = {
 };
 
 type CartLine = { product: Product; quantity: number };
-type PaymentOption = { provider: string; label: string; method: string; channel: string; terminalId?: string; environment?: string };
+type PaymentOption = { provider: string; label: string; method: string; channel: string; terminalId?: string; environment?: string; pixProvider?: string };
 type Props = { storeName: string; initialLogoUrl: string; canManageBrand: boolean; operatorName: string };
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -44,6 +44,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discount, setDiscount] = useState('0');
   const [paymentOptions, setPaymentOptions] = useState<PaymentOption[]>([]);
+  const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
   const [canSimulatePixApproval, setCanSimulatePixApproval] = useState(false);
   const [selectedOption, setSelectedOption] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
@@ -123,8 +124,9 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
         if (!response.ok) throw new Error(errorMessage(result, 'Não foi possível carregar as formas de pagamento.'));
         setPaymentOptions(result.options as PaymentOption[]);
         setCanSimulatePixApproval(result.canSimulatePixApproval === true);
+        setCashRegisterOpen(result.cashRegister?.isOpen === true);
         if (result.options.length) {
-          const preferred = result.options[0] as PaymentOption;
+          const preferred = result.options.find((option: PaymentOption) => option.provider === 'cash') ?? result.options[0] as PaymentOption;
           setSelectedOption(preferred.provider + preferred.method + preferred.terminalId);
         }
       })
@@ -292,7 +294,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
           return;
         }
         await requestGatewayPayment(currentSaleId, {
-          provider: 'mercadopago', label: 'Mercado Pago', method: 'pix', channel: 'online', environment: selectedPayment.environment,
+          provider: selectedPayment.pixProvider ?? 'mercadopago', label: selectedPayment.label, method: 'pix', channel: 'online', environment: selectedPayment.environment,
         });
         return;
       }
@@ -389,7 +391,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
       setPaymentStatus('split_pix_due');
       setMessage(`Dinheiro registrado. Agora cobre ${money(Number(result.remainingAmount))} por Pix.`);
       await requestGatewayPayment(saleId, {
-        provider: 'mercadopago', label: 'Mercado Pago', method: 'pix', channel: 'online', environment: selectedPayment?.environment,
+        provider: selectedPayment?.pixProvider ?? 'mercadopago', label: selectedPayment?.label ?? 'Pix', method: 'pix', channel: 'online', environment: selectedPayment?.environment,
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível iniciar o pagamento misto.');
@@ -478,6 +480,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
             <div><h2 className="text-2xl font-semibold tracking-tight">Nova venda</h2><p className="mt-1 text-sm text-slate-500">Pesquise ou leia o código de barras para adicionar produtos.</p></div>
             <Button type="button" variant="outline" className="hidden sm:inline-flex" onClick={() => searchRef.current?.focus()}><Barcode className="mr-2" size={17} />Leitor de código</Button>
           </div>
+          {!cashRegisterOpen && <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><span>Abra seu caixa para iniciar vendas e registrar recebimentos.</span><a href="/caixa" className="font-semibold underline">Abrir caixa</a></div>}
 
           <form onSubmit={handleSearchSubmit} className="mb-4 flex gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><Input ref={searchRef} autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar produto ou escanear código de barras" className="h-12 border-0 bg-slate-50 pl-11 text-base shadow-none focus-visible:ring-orange-500" aria-label="Buscar produto ou código de barras" /></div>
@@ -552,7 +555,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
               {payment?.paymentUrl && <a href={payment.paymentUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-semibold text-orange-800 underline">Abrir pagamento</a>}
               {!payment && <p className="mt-2 text-sm text-orange-800">Confirme o recebimento no provedor ou na maquininha.</p>}
             </div>
-            {canSimulatePixApproval && selectedPayment?.environment === 'sandbox' && ['mercadopago', 'split'].includes(selectedPayment.provider) && <Button type="button" onClick={() => void simulatePixApproval()} disabled={busy} variant="outline" className="h-11 w-full border-amber-300 text-amber-900 hover:bg-amber-50">{busy && <LoaderCircle className="mr-2 animate-spin" size={16} />}Simular aprovação Pix (Sandbox)</Button>}
+            {canSimulatePixApproval && selectedPayment?.environment === 'sandbox' && ['mercadopago', 'split'].includes(selectedPayment.provider) && selectedPayment.pixProvider !== 'pagarme' && <Button type="button" onClick={() => void simulatePixApproval()} disabled={busy} variant="outline" className="h-11 w-full border-amber-300 text-amber-900 hover:bg-amber-50">{busy && <LoaderCircle className="mr-2 animate-spin" size={16} />}Simular aprovação Pix (Sandbox)</Button>}
             <Button type="button" onClick={confirmManualPayment} disabled={busy || !['pix_manual', 'external_terminal'].includes(selectedPayment?.provider ?? '')} className="h-11 w-full rounded-xl bg-emerald-600 hover:bg-emerald-700"><Check className="mr-2" size={18} />Confirmar recebimento</Button>
             <button type="button" onClick={() => void cancelSale()} disabled={busy} className="w-full py-1 text-sm font-medium text-slate-500 hover:text-red-600">Cancelar venda e liberar estoque</button>
           </div>}

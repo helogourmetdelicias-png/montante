@@ -8,13 +8,23 @@ export const dynamic = 'force-dynamic';
 export async function POST(_request: Request, context: { params: { id: string; attemptId: string } }) {
   const session = await auth();
   const tenantId = session?.user?.tenantId;
-  if (!tenantId) return NextResponse.json({ error: 'Entre na sua conta para confirmar o pagamento.' }, { status: 401 });
+  const userId = session?.user?.id;
+  if (!tenantId || !userId) return NextResponse.json({ error: 'Entre na sua conta para confirmar o pagamento.' }, { status: 401 });
 
   const attempt = await prisma.paymentAttempt.findFirst({
     where: { id: context.params.attemptId, sale_id: context.params.id, tenant_id: tenantId },
     select: { id: true, sale_id: true, provider: true, status: true, amount: true, method: true },
   });
   if (!attempt) return NextResponse.json({ error: 'Tentativa de pagamento não encontrada nesta loja.' }, { status: 404 });
+  const saleRegister = await prisma.sale.findFirst({
+    where: { id: attempt.sale_id, tenant_id: tenantId },
+    select: { cash_register_session_id: true },
+  });
+  const openRegister = saleRegister?.cash_register_session_id ? await prisma.cashRegisterSession.findFirst({
+    where: { id: saleRegister.cash_register_session_id, tenant_id: tenantId, user_id: userId, status: 'OPEN' },
+    select: { id: true },
+  }) : null;
+  if (!openRegister) return NextResponse.json({ error: 'Abra o caixa antes de confirmar este recebimento.' }, { status: 409 });
   if (!['pix_manual', 'external_terminal'].includes(attempt.provider)) {
     return NextResponse.json({ error: 'Este pagamento deve ser confirmado pelo provedor.' }, { status: 409 });
   }
@@ -37,7 +47,7 @@ export async function POST(_request: Request, context: { params: { id: string; a
 
     await tx.sale.updateMany({
       where: { id: sale.id, tenant_id: tenantId, status: 'pending' },
-      data: { status: 'completed', payment_method: attempt.method.toLowerCase(), expires_at: null },
+      data: { status: 'completed', payment_method: attempt.method.toLowerCase(), expires_at: null, sold_at: now },
     });
     return true;
   });

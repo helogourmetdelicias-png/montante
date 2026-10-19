@@ -12,7 +12,7 @@ export async function GET() {
   const tenantId = session?.user?.tenantId;
   if (!tenantId) return NextResponse.json({ error: 'Entre na sua conta para abrir o PDV.' }, { status: 401 });
 
-  const [configuration, terminals] = await Promise.all([
+  const [configuration, terminals, openRegister] = await Promise.all([
     prisma.paymentGatewayConfig.findFirst({
       where: { tenant_id: tenantId, is_active: true, is_default: true },
       select: { provider: true, display_name: true, environment: true },
@@ -21,6 +21,10 @@ export async function GET() {
       where: { tenant_id: tenantId, provider: 'external_terminal', is_active: true, connection_status: 'paired' },
       select: { id: true, name: true, provider: true },
       orderBy: { name: 'asc' },
+    }),
+    prisma.cashRegisterSession.findFirst({
+      where: { tenant_id: tenantId, user_id: session.user.id, status: 'OPEN' },
+      select: { id: true, opened_at: true },
     }),
   ]);
 
@@ -37,8 +41,8 @@ export async function GET() {
   })));
 
   const cashOption = { provider: 'cash', label: 'Dinheiro no caixa', method: 'cash', channel: 'in_person' };
-  const splitOption = methods.some(({ provider, method }) => provider === 'mercadopago' && method === 'pix')
-    ? { provider: 'split', label: 'Pix + dinheiro', method: 'mixed', channel: 'in_person', environment: configuration?.environment }
+  const splitOption = methods.some(({ provider, method }) => ['mercadopago', 'pagarme'].includes(provider) && method === 'pix')
+    ? { provider: 'split', label: 'Pix + dinheiro', method: 'mixed', channel: 'in_person', environment: configuration?.environment, pixProvider: configuration?.provider }
     : null;
   const canSimulatePixApproval = process.env.NODE_ENV !== 'production' &&
     process.env.PAYMENTS_TEST_ENABLED === 'true' &&
@@ -48,5 +52,6 @@ export async function GET() {
   return NextResponse.json({
     options: [...methods, cashOption, ...(splitOption ? [splitOption] : []), ...terminalMethods],
     canSimulatePixApproval,
+    cashRegister: openRegister ? { isOpen: true, openedAt: openRegister.opened_at } : { isOpen: false },
   });
 }

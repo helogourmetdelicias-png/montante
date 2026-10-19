@@ -33,6 +33,16 @@ enum PaymentAttemptStatus {
   REFUNDED
 }
 
+enum CashRegisterStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashMovementType {
+  SUPPLY
+  WITHDRAWAL
+}
+
 model Tenant {
   id                   String   @id @default(cuid())
   name                 String
@@ -54,13 +64,15 @@ model Tenant {
   created_at           DateTime @default(now())
   updated_at           DateTime @updatedAt
 
-  users             User[]
-  products          Product[]
-  sales             Sale[]
-  payment_configs   PaymentGatewayConfig[]
-  payment_attempts  PaymentAttempt[]
-  payment_terminals PaymentTerminal[]
-  billing_records   BillingRecord[]
+  users                   User[]
+  products                Product[]
+  sales                   Sale[]
+  payment_configs         PaymentGatewayConfig[]
+  payment_attempts        PaymentAttempt[]
+  payment_terminals       PaymentTerminal[]
+  billing_records         BillingRecord[]
+  cash_register_sessions  CashRegisterSession[]
+  cash_register_movements CashRegisterMovement[]
 }
 
 model User {
@@ -77,11 +89,14 @@ model User {
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
 
-  tenant   Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  accounts Account[]
-  sessions Session[]
+  tenant                  Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  accounts                Account[]
+  sessions                Session[]
+  cash_register_sessions  CashRegisterSession[]
+  cash_register_movements CashRegisterMovement[]
 
   @@unique([email, tenant_id])
+  @@unique([id, tenant_id])
   @@index([tenant_id])
 }
 
@@ -172,26 +187,28 @@ model PaymentGatewayConfig {
 }
 
 model Sale {
-  id              String    @id @default(cuid())
-  tenant_id       String
-  sale_number     Int
-  status          String    @default("pending")
-  payment_method  String?
-  total_amount    Decimal   @db.Decimal(10, 2)
-  amount_received Decimal?  @db.Decimal(10, 2)
-  change_amount   Decimal?  @db.Decimal(10, 2)
-  discount_amount Decimal   @default(0) @db.Decimal(10, 2)
-  idempotency_key String?
-  request_hash    String?   @db.Char(64)
-  expires_at      DateTime?
-  notes           String?   @db.Text
-  sold_at         DateTime  @default(now())
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  id                       String    @id @default(cuid())
+  tenant_id                String
+  sale_number              Int
+  status                   String    @default("pending")
+  payment_method           String?
+  total_amount             Decimal   @db.Decimal(10, 2)
+  amount_received          Decimal?  @db.Decimal(10, 2)
+  change_amount            Decimal?  @db.Decimal(10, 2)
+  discount_amount          Decimal   @default(0) @db.Decimal(10, 2)
+  idempotency_key          String?
+  request_hash             String?   @db.Char(64)
+  expires_at               DateTime?
+  cash_register_session_id String?
+  notes                    String?   @db.Text
+  sold_at                  DateTime  @default(now())
+  created_at               DateTime  @default(now())
+  updated_at               DateTime  @updatedAt
 
-  tenant           Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  items            SaleItem[]
-  payment_attempts PaymentAttempt[]
+  tenant                Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  items                 SaleItem[]
+  payment_attempts      PaymentAttempt[]
+  cash_register_session CashRegisterSession? @relation(fields: [cash_register_session_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
 
   @@unique([tenant_id, sale_number])
   @@unique([id, tenant_id])
@@ -199,6 +216,47 @@ model Sale {
   @@index([tenant_id])
   @@index([tenant_id, sold_at])
   @@index([tenant_id, status, expires_at])
+  @@index([tenant_id, cash_register_session_id, sold_at])
+}
+
+model CashRegisterSession {
+  id                String             @id @default(cuid())
+  tenant_id         String
+  user_id           String
+  status            CashRegisterStatus @default(OPEN)
+  initial_amount    Decimal            @db.Decimal(10, 2)
+  declared_amount   Decimal?           @db.Decimal(10, 2)
+  expected_amount   Decimal?           @db.Decimal(10, 2)
+  difference_amount Decimal?           @db.Decimal(10, 2)
+  opened_at         DateTime           @default(now())
+  closed_at         DateTime?
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @updatedAt
+
+  tenant    Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user      User                   @relation(fields: [user_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
+  sales     Sale[]
+  movements CashRegisterMovement[]
+
+  @@unique([id, tenant_id])
+  @@index([tenant_id, user_id, status, opened_at])
+}
+
+model CashRegisterMovement {
+  id          String           @id @default(cuid())
+  tenant_id   String
+  session_id  String
+  user_id     String
+  type        CashMovementType
+  amount      Decimal          @db.Decimal(10, 2)
+  description String           @db.VarChar(240)
+  created_at  DateTime         @default(now())
+
+  tenant  Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  session CashRegisterSession @relation(fields: [session_id, tenant_id], references: [id, tenant_id], onDelete: Cascade)
+  user    User                @relation(fields: [user_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
+
+  @@index([tenant_id, session_id, created_at])
 }
 
 model PaymentTerminal {
@@ -248,7 +306,7 @@ model PaymentAttempt {
   amount                  Decimal              @db.Decimal(10, 2)
   amount_received         Decimal?             @db.Decimal(10, 2)
   change_amount           Decimal?             @db.Decimal(10, 2)
-    is_simulated            Boolean              @default(false)
+  is_simulated            Boolean              @default(false)
   currency                String               @default("BRL") @db.Char(3)
   idempotency_key         String
   external_order_id       String?
