@@ -158,3 +158,12 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 3. Com o domínio HTTPS informado, cadastrar `MERCADOPAGO_WEBHOOK_SECRET`, apontar Webhooks do Mercado Pago para a rota e validar liquidação Pix Sandbox e entrega/reenvio.
 4. Parear/homologar Maquininha Física quando o equipamento e as credenciais estiverem disponíveis. Cartão digitado na web permanece fora do escopo do PDV.
 5. Implementar OAuth/adapters dos demais provedores quando priorizados e com documentação/credenciais disponíveis.
+
+## GitHub e preparação para Vercel
+
+- [x] Repositório Git inicializado localmente na branch `main`; remoto `origin` aponta para `https://github.com/helogourmetdelicias-png/montante.git`.
+- [x] Snapshot local criado no commit inicial `28ff565` com código, migrações, testes e documentação.
+- [x] Conferência antes da publicação: `.env`, `node_modules`, `.next` e `*.tsbuildinfo` estão ignorados; `.env` não foi staged nem enviado. Não foram encontrados arquivos de chave privada ou tokens de gateway no conjunto staged.
+- [~] `git push -u origin main` foi bloqueado pelo GitHub com HTTP `403`: a conta autenticada `tecnicorikardo` não possui permissão de escrita no repositório informado. A branch local está pronta; push permanece pendente de acesso de colaborador ou autenticação autorizada.
+- [x] Antes da publicação: `npm test` passou (13/13), `npx tsc --noEmit --incremental false` passou e `npx next build --no-lint` passou incluindo as rotas Cron e webhook; ESLint foi desabilitado pelo comando.
+- [~] Variáveis de produção precisam ser cadastradas na Vercel antes do deploy. A lista e a classificação entre obrigatórias e opcionais foram entregues ao usuário; segredos reais não devem ser enviados ao GitHub nem compartilhados no chat.
