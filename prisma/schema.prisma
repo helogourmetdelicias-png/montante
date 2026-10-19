@@ -1,0 +1,290 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum PaymentMethod {
+  PIX
+  CREDIT_CARD
+  DEBIT_CARD
+  CASH
+}
+
+enum PaymentChannel {
+  ONLINE
+  TERMINAL
+  EXTERNAL_TERMINAL
+  IN_PERSON
+}
+
+enum PaymentAttemptStatus {
+  CREATED
+  PENDING
+  APPROVED
+  DECLINED
+  CANCELLED
+  EXPIRED
+  FAILED
+  REFUNDED
+}
+
+model Tenant {
+  id                   String   @id @default(cuid())
+  name                 String
+  slug                 String   @unique
+  cnpj                 String?  @unique
+  phone                String?
+  email                String?
+  address_street       String?
+  address_number       String?
+  address_complement   String?
+  address_neighborhood String?
+  address_city         String?
+  address_state        String?  @db.Char(2)
+  address_zip          String?
+  logo_url             String?
+  is_active            Boolean  @default(true)
+  plan_tier            String   @default("free")
+  sales_sequence       Int      @default(0)
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  users             User[]
+  products          Product[]
+  sales             Sale[]
+  payment_configs   PaymentGatewayConfig[]
+  payment_attempts  PaymentAttempt[]
+  payment_terminals PaymentTerminal[]
+  billing_records   BillingRecord[]
+}
+
+model User {
+  id             String    @id @default(cuid())
+  tenant_id      String
+  name           String
+  email          String
+  email_verified DateTime?
+  password_hash  String?
+  role           String    @default("staff")
+  avatar_url     String?
+  phone          String?
+  is_active      Boolean   @default(true)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  accounts Account[]
+  sessions Session[]
+
+  @@unique([email, tenant_id])
+  @@index([tenant_id])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Product {
+  id               String   @id @default(cuid())
+  tenant_id        String
+  name             String
+  description      String?  @db.Text
+  sku              String?
+  barcode          String?
+  unit_of_measure  String
+  sell_by_fraction Boolean  @default(false)
+  price            Decimal  @db.Decimal(10, 2)
+  cost_price       Decimal? @db.Decimal(10, 2)
+  stock_quantity   Decimal  @db.Decimal(10, 3)
+  stock_min_alert  Decimal? @db.Decimal(10, 3)
+  stock_aisle      String?
+  stock_shelf      String?
+  category         String?
+  brand            String?
+  is_active        Boolean  @default(true)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  tenant     Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sale_items SaleItem[]
+
+  @@unique([tenant_id, sku])
+  @@unique([tenant_id, barcode])
+  @@index([tenant_id])
+}
+
+model PaymentGatewayConfig {
+  id                    String   @id @default(cuid())
+  tenant_id             String
+  provider              String
+  is_active             Boolean  @default(false)
+  is_default            Boolean  @default(false)
+  encrypted_credentials String?  @db.Text
+  pix_key               String?
+  pix_key_type          String?
+  display_name          String?
+  environment           String   @default("sandbox")
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  tenant           Tenant            @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  payment_attempts PaymentAttempt[]
+  terminals        PaymentTerminal[]
+
+  @@unique([tenant_id, provider])
+  @@index([tenant_id])
+}
+
+model Sale {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  sale_number     Int
+  status          String    @default("pending")
+  payment_method  String?
+  total_amount    Decimal   @db.Decimal(10, 2)
+  amount_received Decimal?  @db.Decimal(10, 2)
+  change_amount   Decimal?  @db.Decimal(10, 2)
+  discount_amount Decimal   @default(0) @db.Decimal(10, 2)
+  idempotency_key String?
+  request_hash    String?   @db.Char(64)
+  expires_at      DateTime?
+  notes           String?   @db.Text
+  sold_at         DateTime  @default(now())
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  tenant           Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  items            SaleItem[]
+  payment_attempts PaymentAttempt[]
+
+  @@unique([tenant_id, sale_number])
+  @@unique([id, tenant_id])
+  @@unique([tenant_id, idempotency_key])
+  @@index([tenant_id])
+  @@index([tenant_id, sold_at])
+  @@index([tenant_id, status, expires_at])
+}
+
+model PaymentTerminal {
+  id                   String    @id @default(cuid())
+  tenant_id            String
+  gateway_config_id    String?
+  provider             String
+  external_terminal_id String
+  external_store_id    String?
+  name                 String
+  connection_status    String    @default("unpaired")
+  is_active            Boolean   @default(true)
+  last_seen_at         DateTime?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  tenant           Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  gateway_config   PaymentGatewayConfig? @relation(fields: [gateway_config_id], references: [id], onDelete: SetNull)
+  payment_attempts PaymentAttempt[]
+
+  @@unique([tenant_id, provider, external_terminal_id])
+  @@index([tenant_id, provider, is_active])
+}
+
+model SaleItem {
+  id          String  @id @default(cuid())
+  sale_id     String
+  product_id  String
+  quantity    Decimal @db.Decimal(10, 3)
+  unit_price  Decimal @db.Decimal(10, 2)
+  total_price Decimal @db.Decimal(10, 2)
+
+  sale    Sale    @relation(fields: [sale_id], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [product_id], references: [id])
+}
+
+model PaymentAttempt {
+  id                      String               @id @default(cuid())
+  tenant_id               String
+  sale_id                 String
+  gateway_config_id       String?
+  terminal_id             String?
+  provider                String
+  method                  PaymentMethod
+  channel                 PaymentChannel
+  status                  PaymentAttemptStatus @default(CREATED)
+  amount                  Decimal              @db.Decimal(10, 2)
+  amount_received         Decimal?             @db.Decimal(10, 2)
+  change_amount           Decimal?             @db.Decimal(10, 2)
+    is_simulated            Boolean              @default(false)
+  currency                String               @default("BRL") @db.Char(3)
+  idempotency_key         String
+  external_order_id       String?
+  external_transaction_id String?
+  failure_code            String?
+  failure_message         String?              @db.Text
+  expires_at              DateTime?
+  confirmed_at            DateTime?
+  created_at              DateTime             @default(now())
+  updated_at              DateTime             @updatedAt
+
+  tenant         Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sale           Sale                  @relation(fields: [sale_id, tenant_id], references: [id, tenant_id], onDelete: Cascade)
+  gateway_config PaymentGatewayConfig? @relation(fields: [gateway_config_id], references: [id], onDelete: SetNull)
+  terminal       PaymentTerminal?      @relation(fields: [terminal_id], references: [id], onDelete: SetNull)
+
+  @@unique([tenant_id, provider, idempotency_key])
+  @@unique([provider, external_order_id])
+  @@index([tenant_id, sale_id, status])
+  @@index([tenant_id, created_at])
+}
+
+model BillingRecord {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  reference_month String
+  total_sales     Int
+  plan_tier       String
+  amount_due      Decimal   @db.Decimal(10, 2)
+  status          String    @default("pending")
+  paid_at         DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, reference_month])
+  @@index([tenant_id])
+}

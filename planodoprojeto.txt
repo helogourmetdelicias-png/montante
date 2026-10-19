@@ -1,0 +1,25 @@
+Atue como um Arquiteto de Software Sênior e Desenvolvedor Fullstack especialista em SaaS Multi-tenant.
+
+Preciso que você crie a estrutura inicial (código base/arquitetura) para um módulo do meu SaaS voltado especificamente para Lojas de Material de Construção, contemplando duas regras de negócio cruciais:
+
+1. CATÁLOGO ESPECÍFICO DE MATERIAL DE CONSTRUÇÃO:
+- O cadastro de produtos precisa suportar unidades de medida flexíveis (ex: saco, metro, m², kg, litro, peça).
+- Deve permitir quantidades fracionadas nas vendas (ex: comprar 2.5 metros de cabo elétrico ou 1.5 sacos de cimento).
+- Campos extras no produto: Localização no estoque (Corredor/Prateleira) e se o item é vendido por peso/medida ou unidade inteira.
+
+2. GATEWAY DE PAGAMENTO FLEXÍVEL (ADAPTER PATTERN):
+- O lojista pode escolher qual operadora de pagamento ele quer usar no PDV dele para cobrar os clientes finais.
+- Opções suportadas inicialmente: Mercado Pago, Asaas, PagBank e "Pix Manual/Outro" (onde ele apenas cadastra a chave Pix dele).
+- Crie uma tabela/modelo de configuração onde o sistema salva essas credenciais de forma segura (criptografada) por tenant (loja).
+
+3. CÁLCULO DE COBRANÇA DA ASSINATURA DO SAAS (USAGE-BASED BILLING):
+- No final de cada mês, o sistema conta o total de vendas do lojista e aplica a nossa regra de preço:
+  * Menos de 500 vendas: R$ 10,00
+  * De 500 a 1.000 vendas: R$ 24,90
+  * Acima de 1.000 vendas (teto): R$ 49,00
+- O sistema deve gerar um aviso no painel do lojista com o valor correspondente e o QR Code Pix do nosso SaaS para ele pagar.
+
+Por favor, forneça:
+- A modelagem do banco de dados (tabelas e relacionamentos em SQL ou Prisma ORM).
+- A lógica em código (Node.js/TypeScript ou linguagem sugerida) para o cálculo da faixa de preço do SaaS e para o roteamento do gateway de pagamento escolhido.
+- Uma breve explicação de como estruturar isso de forma modular.
