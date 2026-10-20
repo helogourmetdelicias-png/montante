@@ -27,7 +27,7 @@ type Product = {
 
 type CartLine = { product: Product; quantity: number };
 type PaymentOption = { provider: string; label: string; method: string; channel: string; terminalId?: string; environment?: string; pixProvider?: string };
-type Props = { storeName: string; initialLogoUrl: string; canManageBrand: boolean; operatorName: string };
+type Props = { storeName: string; canManageBrand: boolean; operatorName: string };
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -42,7 +42,7 @@ function errorMessage(payload: unknown, fallback: string) {
 }
 
 /** One-screen checkout: searchable catalog on the left, live cart and payment on the right. */
-export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand, operatorName }: Props) {
+export default function PointOfSale({ storeName, canManageBrand, operatorName }: Props) {
   const searchRef = useRef<HTMLInputElement>(null);
   const saleDialog = useRef<HTMLDialogElement>(null);
   const quickAmountRef = useRef<HTMLInputElement>(null);
@@ -546,9 +546,6 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
             <StoreNavigation activePage="pdv" canManageStore={canManageBrand} />
             <Button type="button" variant="outline" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen}>{fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</Button>
             <div className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500" />Sessão ativa</div>
-            {initialLogoUrl && <div className="relative flex h-[60px] w-[136px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 px-3 sm:h-[76px] sm:w-[190px]">
-              <img src={initialLogoUrl} alt={`Logo de ${storeName}`} className="max-h-full max-w-full object-contain" />
-            </div>}
           </div>
         </div>
       </header>

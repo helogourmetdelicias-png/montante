@@ -5,7 +5,7 @@ import PointOfSale from './point-of-sale';
 
 export const dynamic = 'force-dynamic';
 
-/** Loads tenant branding server-side so the cashier sees the right store immediately. */
+/** Loads the store name for the authenticated cashier. */
 export default async function PointOfSalePage() {
   const session = await auth();
   const tenantId = session?.user?.tenantId;
@@ -13,12 +13,12 @@ export default async function PointOfSalePage() {
 
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
-    select: { name: true, logo_url: true },
+    select: { name: true },
   });
   if (!tenant) redirect('/login');
 
   const canManageStore = ['owner', 'admin'].includes(session.user.role);
   return <>
-    <PointOfSale storeName={tenant.name} initialLogoUrl={tenant.logo_url ?? ''} canManageBrand={canManageStore} operatorName={session.user.name ?? 'Operador'} />
+    <PointOfSale storeName={tenant.name} canManageBrand={canManageStore} operatorName={session.user.name ?? 'Operador'} />
   </>;
 }
