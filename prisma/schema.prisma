@@ -71,6 +71,7 @@ model Tenant {
   payment_configs         PaymentGatewayConfig[]
   payment_attempts        PaymentAttempt[]
   payment_terminals       PaymentTerminal[]
+  subscription            TenantSubscription?
   billing_records         BillingRecord[]
   cash_register_sessions  CashRegisterSession[]
   cash_register_movements CashRegisterMovement[]
@@ -240,8 +241,8 @@ model Sale {
 
   @@unique([tenant_id, sale_number])
   @@unique([id, tenant_id])
-  @@index([customer_id, tenant_id])
   @@unique([tenant_id, idempotency_key])
+  @@index([customer_id, tenant_id])
   @@index([tenant_id])
   @@index([tenant_id, sold_at])
   @@index([tenant_id, status, expires_at])
@@ -358,17 +359,41 @@ model PaymentAttempt {
   @@index([tenant_id, created_at])
 }
 
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  OVERDUE
+}
+
+model TenantSubscription {
+  id              String             @id @default(cuid())
+  tenant_id       String             @unique
+  trial_ends_at   DateTime
+  status          SubscriptionStatus @default(TRIAL)
+  next_billing_at DateTime
+  tenant          Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([next_billing_at])
+}
+
 model BillingRecord {
-  id              String    @id @default(cuid())
-  tenant_id       String
-  reference_month String
-  total_sales     Int
-  plan_tier       String
-  amount_due      Decimal   @db.Decimal(10, 2)
-  status          String    @default("pending")
-  paid_at         DateTime?
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  tenant_id           String
+  cycle_start         DateTime?
+  cycle_end           DateTime?
+  billing_start       DateTime?
+  billing_end         DateTime?
+  due_at              DateTime?
+  external_payment_id String?   @unique
+  checkout_url        String?
+  reference_month     String
+  total_sales         Int
+  plan_tier           String
+  amount_due          Decimal   @db.Decimal(10, 2)
+  status              String    @default("pending")
+  paid_at             DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 

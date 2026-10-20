@@ -1,12 +1,18 @@
 # Checklist de andamento — Montante
 
-**Atualizado em:** 19/10/2026
+**Atualizado em:** 20/10/2026
 **Plano de referência:** `planodoprojeto.txt`
 **Legenda:** `[x]` feito e validado; `[~]` implementado parcialmente ou validado só em parte; `[ ]` pendente.
 
 Este arquivo é a referência de andamento. Só marcar como validado depois de executar a verificação correspondente. Não colocar tokens, senhas, URLs de conexão ou outros segredos neste arquivo.
 
 ## Feito e validado
+
+- [x] Assinaturas: trial de 3 meses desde o cadastro (regra comercial prevaleceu sobre a menção técnica a 6 meses), planos Padrão R$ 49,90 até 500 vendas e Avançado R$ 79,00 acima de 500, com regressão automática. Apuração por tenant, status `completed` e `sold_at` em ciclos mensais no aniversário UTC do cadastro; primeira fatura ao fim do trial, referente ao ciclo pago seguinte. Vencimento adotado: 7 dias. Job protegido `GET`/`POST /api/cron/billing`, paginação de 100 tenants, recuperação de até 12 ciclos por tenant por execução, transações serializáveis e idempotência implementados.
+- [x] Migration `20261020000100_subscriptions` aplicada ao banco conectado; `prisma migrate status` confirmou atualização. Lojas existentes preservam a data original de cadastro. `npm test` passou 33/33; TypeScript e build de produção sem lint passaram. Integração `node --env-file=.env tests/billing.database.cjs` validou trial sem cobrança, 501 vendas, status/datas, isolamento, concorrência sem fatura duplicada, regressão, atraso e recuperação. Fixtures removidas ao finalizar.
+- [x] Cobrança SaaS via Checkout Pro Mercado Pago implementada usando credencial global separada das lojas; baixa por webhook assinado após consulta de aprovação, referência, moeda e valor. Testes dos handlers reais validaram bloqueio de caixa, isolamento de tenant, rejeição de assinatura inválida/valor divergente, baixa e reenvio sem duplicação com provedor simulado. Credencial global consultada em `/users/me`: HTTP 200, conta de teste; nenhum segredo exibido e nenhuma cobrança real criada.
+- [~] Tela `/assinatura` e aviso no PDV para owner/admin implementados com dias de trial, consumo, alertas a partir de 450 vendas, projeção e histórico com botão de pagamento. Build validada; conferência visual autenticada pendente.
+- [~] Ativação pública da cobrança pendente: publicar código, configurar `SAAS_BILLING_URL`, `SAAS_MERCADOPAGO_WEBHOOK_SECRET`, credencial recebedora de produção e agendador com `CRON_SECRET`; homologar checkout/Pix e entrega do webhook no Mercado Pago. Conta local disponível é de teste. Checkout por fatura não faz débito automático. Guia operacional em `docs/billing.md`.
 
 - [x] Histórico de compras por cliente e ranking de melhores clientes implementados com filtros por período, totais de vendas concluídas e paginação. Relatórios limitados a owner/admin da loja. Testes de integração validaram ordenação por valor líquido, status, limites de datas em São Paulo, clientes inativos, vendas sem vínculo, perfis e isolamento; fixtures QA foram removidas ao terminar. `npm test` (29/29), TypeScript e build passaram.
 - [~] WhatsApp implementado por mensagem de texto com prévia: resumo do relatório e totais/histórico da página do cliente. O usuário escolhe o contato e envia no WhatsApp; não há envio automático nem link público para dados da loja. Codificação/conteúdo testados; abertura visual e envio manual pelo usuário ainda pendentes.
@@ -194,6 +200,8 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 5. Implementar OAuth/adapters dos demais provedores quando priorizados e com documentação/credenciais disponíveis.
 
 ## GitHub e preparação para Vercel
+
+- [x] Relatórios, histórico de cliente e compartilhamento WhatsApp publicados em `origin/main` no commit `ed5a354`; check `Vercel – montante-um2r` confirmado como sucesso. WhatsApp abre mensagem pronta (resumo em texto; histórico da página atual), com envio pelo usuário. Conferência visual e envio pelo próprio usuário permanecem pendentes.
 
 - [x] Clientes publicados em `origin/main` no commit `a3c5418`; check `Vercel – montante-um2r` confirmou sucesso no domínio em uso. Inclui cadastro/edição/exclusão lógica de clientes, seleção no PDV e botão Editar em Produtos. O segundo projeto `montante` reportou falha, como nos deploys anteriores, e não atende o domínio principal. Conferência visual do usuário permanece pendente.
 

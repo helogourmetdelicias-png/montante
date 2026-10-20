@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { addBillingMonths, TRIAL_MONTHS } from '@/lib/billing';
 import { hash } from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -19,8 +20,12 @@ export async function POST(request: Request) {
   const passwordHash = await hash(input.password, 12);
 
   try {
+    const createdAt = new Date();
+    const trialEnd = addBillingMonths(createdAt, TRIAL_MONTHS);
     const tenant = await prisma.tenant.create({
       data: {
+        created_at: createdAt,
+        subscription: { create: { trial_ends_at: trialEnd, next_billing_at: trialEnd } },
         name: input.tenantName.trim(),
         slug,
         email,

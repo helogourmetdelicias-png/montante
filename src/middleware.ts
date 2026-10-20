@@ -7,7 +7,7 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
 
   // The scheduler route enforces its own Bearer secret because it has no user session.
-  const isPublic = pathname === '/api/cron/release-expired-sales' ||
+  const isPublic = pathname === '/api/cron/release-expired-sales' || pathname === '/api/cron/billing' || pathname === '/api/webhooks/billing' ||
     pathname === '/api/webhooks/mercadopago' || PUBLIC_ROUTES.some((route) =>
     pathname.startsWith(route)
   );

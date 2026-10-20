@@ -1,50 +1,23 @@
-import { Decimal } from '@prisma/client/runtime/library';
-
-type BillingTier = {
-  label: string;
-  amount: Decimal;
-};
-
-/**
- * Regra de negócio: calcula a faixa de cobrança mensal do SaaS
- * baseada no total de vendas realizadas no período.
- *
- * < 500 vendas  -> R$ 10,00 (Starter)
- * 500 a 1000   -> R$ 24,90 (Grow)
- * > 1000        -> R$ 49,00 (Pro — teto máximo)
- */
-export function calculateBillingTier(totalSales: number): BillingTier {
-  if (totalSales < 500) {
-    return { label: 'Starter', amount: new Decimal('10.00') };
-  }
-  if (totalSales <= 1000) {
-    return { label: 'Grow', amount: new Decimal('24.90') };
-  }
-  return { label: 'Pro', amount: new Decimal('49.00') };
+export const TRIAL_MONTHS = 3;
+export const SALES_LIMIT = 500;
+/** Registration anniversary in UTC, clamped to the final day of short months. */
+export function addBillingMonths(anchor: Date, months: number): Date {
+  const result = new Date(anchor);
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() + months);
+  const last = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate();
+  result.setUTCDate(Math.min(anchor.getUTCDate(), last));
+  return result;
 }
-
-/**
- * Conta o total de vendas de um tenant em um mês de referência.
- * @param prismaClient - instância do PrismaClient
- * @param tenantId - ID do tenant
- * @param referenceMonth - formato "YYYY-MM", ex: "2025-01"
- */
-export async function countMonthlySales(
-  prismaClient: any,
-  tenantId: string,
-  referenceMonth: string
-): Promise<number> {
-  const [year, month] = referenceMonth.split('-').map(Number);
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 1);
-
-  const count = await prismaClient.sale.count({
-    where: {
-      tenant_id: tenantId,
-      status: 'completed',
-      sold_at: { gte: startDate, lt: endDate },
-    },
-  });
-
-  return count;
+export function calculateBillingTier(totalSales: number) {
+  if (!Number.isSafeInteger(totalSales) || totalSales < 0) throw new Error('Quantidade inválida.');
+  return totalSales > SALES_LIMIT ? { label: 'Avançado', amount: '79.00' } : { label: 'Padrão', amount: '49.90' };
+}
+export function billingCycle(anchor: Date, now: Date) {
+  let index = Math.max(0, (now.getUTCFullYear() - anchor.getUTCFullYear()) * 12 + now.getUTCMonth() - anchor.getUTCMonth());
+  if (addBillingMonths(anchor, index) > now) index = Math.max(0, index - 1);
+  return { index, start: addBillingMonths(anchor, index), end: addBillingMonths(anchor, index + 1) };
+}
+export function completedSalesWhere(tenantId: string, start: Date, end: Date) {
+  return { tenant_id: tenantId, status: 'completed', sold_at: { gte: start, lt: end } };
 }

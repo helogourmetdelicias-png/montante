@@ -107,6 +107,8 @@ Critérios: não editar estoque sem rastreio; concorrência, cancelamento e repe
 
 ### Registro desta revisão
 
+- [x] Histórico de cliente, ranking e compartilhamento WhatsApp publicados no commit `ed5a354`; deploy `montante-um2r` confirmado com sucesso. Funcionalidades disponíveis para conferência visual; nenhuma mensagem foi enviada durante a validação.
+
 - [x] Relatórios, clientes e WhatsApp: `npm test` passou (29/29), TypeScript e build passaram. `tests/customer-reports.integration.mjs` validou ranking, limites inclusivos do período de São Paulo, exclusão de pendentes/canceladas dos totais, clientes inativos, vendas sem cliente, paginação, perfis e isolamento entre lojas. Lojas QA temporárias foram removidas; nenhuma mensagem WhatsApp foi enviada e não houve cobrança externa.
 
 - [x] Clientes e botão Editar em Produtos publicados no commit `a3c5418`; deploy `montante-um2r` confirmado com sucesso. Aguardar confirmação visual do cadastro, seleção no PDV e preenchimento automático; Stone não foi homologada nesta entrega.
