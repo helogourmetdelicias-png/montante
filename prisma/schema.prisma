@@ -218,6 +218,7 @@ model Sale {
   tenant_id                String
   sale_number              Int
   status                   String    @default("pending")
+  is_quick_sale            Boolean   @default(false)
   payment_method           String?
   total_amount             Decimal   @db.Decimal(10, 2)
   amount_received          Decimal?  @db.Decimal(10, 2)

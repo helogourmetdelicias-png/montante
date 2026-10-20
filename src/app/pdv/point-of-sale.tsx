@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { Barcode, Check, ChevronDown, CircleAlert, CreditCard, ImagePlus, LoaderCircle, Minus, PackageSearch, Plus, Search, ShoppingBag, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MoneyInput } from '@/components/ui/money-input';
 import StoreNavigation from '@/components/store-navigation';
 import ReceiptPreview from './receipt-preview';
 import CustomerPicker, { type SaleCustomer } from './customer-picker';
@@ -41,6 +42,13 @@ function errorMessage(payload: unknown, fallback: string) {
 /** One-screen checkout: searchable catalog on the left, live cart and payment on the right. */
 export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand, operatorName }: Props) {
   const searchRef = useRef<HTMLInputElement>(null);
+  const saleDialog = useRef<HTMLDialogElement>(null);
+  const quickAmountRef = useRef<HTMLInputElement>(null);
+  const quickButtonRef = useRef<HTMLButtonElement>(null);
+  const advancedButtonRef = useRef<HTMLButtonElement>(null);
+  const paymentButtonRef = useRef<HTMLButtonElement>(null);
+  const [saleMode, setSaleMode] = useState<'quick' | 'advanced'>('quick');
+  const [quickAmount, setQuickAmount] = useState('');
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -81,7 +89,8 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   const [cashRefundConfirmation, setCashRefundConfirmation] = useState('');
   const [splitCashAmount, setSplitCashAmount] = useState('');
 
-  const subtotal = useMemo(() => cart.reduce((sum, line) => sum + Number(line.product.price) * line.quantity, 0), [cart]);
+  const subtotal = useMemo(() => saleMode === 'quick' ? Number(quickAmount) || 0 : cart.reduce((sum, line) => sum + Number(line.product.price) * line.quantity, 0), [cart, saleMode, quickAmount]);
+  const hasSaleValue = saleMode === 'quick' ? Number(quickAmount) > 0 : cart.length > 0;
   const discountInput = Math.max(0, Number(discount.replace(',', '.')) || 0);
   const discountValue = Math.min(subtotal, discountMode === 'percent'
     ? Math.round(subtotal * Math.min(100, discountInput)) / 100
@@ -133,8 +142,37 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
     }
   }
 
+  function openSaleDialog(mode: 'quick' | 'advanced') {
+    if (busy || saleId || logoEditorOpen || cashRefundConfirmation) return;
+    if (mode !== saleMode && (cart.length > 0 || Number(quickAmount) > 0)) {
+      setMessage('Limpe a venda atual antes de trocar entre rápida e avançada.');
+      return;
+    }
+    if (mode !== saleMode) {
+      setDiscount('0');
+      selectCustomer(null);
+    }
+    setSaleMode(mode);
+    if (!saleDialog.current?.open) saleDialog.current?.showModal();
+    requestAnimationFrame(() => (mode === 'quick' ? quickAmountRef : searchRef).current?.focus());
+  }
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'F1' && event.key !== 'F2') return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
+      event.preventDefault();
+      const otherDialog = document.querySelector('dialog[open]');
+      if (otherDialog && otherDialog !== saleDialog.current) return;
+      openSaleDialog(event.key === 'F1' ? 'quick' : 'advanced');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [busy, saleId, saleMode, quickAmount, cart.length, logoEditorOpen, cashRefundConfirmation]);
+
   // Debounced search keeps the barcode field responsive without sending a request per keystroke.
   useEffect(() => {
+    if (saleMode !== 'advanced') return;
     const timer = window.setTimeout(async () => {
       setLoadingProducts(true);
       try {
@@ -151,7 +189,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
       }
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [query]);
+  }, [query, saleMode]);
 
   // Payment options contain only public labels and capability metadata, never gateway credentials.
   useEffect(() => {
@@ -199,6 +237,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   }, [awaitingPayment, saleId, attemptId, selectedPayment?.provider]);
 
   const addProduct = useCallback((product: Product) => {
+    if (saleId || busy) return;
     setCart((current) => {
       const existing = current.find((line) => line.product.id === product.id);
       if (existing) return current.map((line) => line.product.id === product.id ? { ...line, quantity: line.quantity + (product.sellByFraction ? 1 : 1) } : line);
@@ -206,7 +245,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
     });
     setMessage('');
     searchRef.current?.focus();
-  }, []);
+  }, [saleId, busy]);
 
   function setQuantity(productId: string, quantity: number) {
     if (quantity <= 0) {
@@ -285,7 +324,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   }
 
   async function startCheckout() {
-    if (!cart.length || !selectedPayment || busy || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsPagarmeCustomer && !pagarmeCustomerValid)) return;
+    if (!hasSaleValue || !selectedPayment || busy || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsPagarmeCustomer && !pagarmeCustomerValid)) return;
     setBusy(true);
     setMessage('');
     try {
@@ -295,9 +334,11 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             idempotencyKey: crypto.randomUUID(),
-            discountAmount: Number(discountValue.toFixed(2)),
-            ...(selectedCustomer ? { customerId: selectedCustomer.id } : {}),
-            items: cart.map(({ product, quantity }) => ({ productId: product.id, quantity })),
+            ...(saleMode === 'quick' ? { mode: 'quick', quickAmount: Number(quickAmount), items: [] } : {
+              mode: 'advanced', discountAmount: Number(discountValue.toFixed(2)),
+              ...(selectedCustomer ? { customerId: selectedCustomer.id } : {}),
+              items: cart.map(({ product, quantity }) => ({ productId: product.id, quantity })),
+            }),
           }),
         });
         const saleResult = await saleResponse.json();
@@ -470,6 +511,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
 
   function resetSale() {
     setCart([]);
+    setQuickAmount('');
     setDiscount('0');
     setDiscountMode('amount');
     setSaleId('');
@@ -487,7 +529,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
     setCustomerEmail('');
     selectCustomer(null);
     setMessage('');
-    searchRef.current?.focus();
+    (saleMode === 'quick' ? quickButtonRef : advancedButtonRef).current?.focus();
   }
 
   const completed = paymentStatus === 'approved';
@@ -516,54 +558,45 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
       </header>
 
       <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_430px] lg:px-8">
-        <section className="min-w-0">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div><h2 className="text-2xl font-semibold tracking-tight">Nova venda</h2><p className="mt-1 text-sm text-slate-500">Pesquise ou leia o código de barras para adicionar produtos.</p></div>
-            <Button type="button" variant="outline" className="hidden sm:inline-flex" onClick={() => searchRef.current?.focus()}><Barcode className="mr-2" size={17} />Leitor de código</Button>
+        <section className="min-w-0 space-y-5">
+          <div><h2 className="text-2xl font-semibold tracking-tight">Nova venda</h2><p className="mt-1 text-sm text-slate-500">Escolha como deseja vender. Os atalhos também funcionam pelo teclado.</p></div>
+          {!cashRegisterOpen && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Abra seu caixa para iniciar vendas. <a href="/caixa" className="font-semibold underline">Abrir caixa</a></div>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Button ref={quickButtonRef} type="button" variant={saleMode === 'quick' ? 'default' : 'outline'} disabled={busy || Boolean(saleId)} onClick={() => openSaleDialog('quick')} className="h-auto min-h-24 flex-col gap-2 whitespace-normal rounded-2xl" aria-keyshortcuts="F1"><span className="text-lg font-semibold">F1 · Venda rápida</span><span className="text-sm font-normal">Valor livre, sem produto e sem cadastro de cliente</span></Button>
+            <Button ref={advancedButtonRef} type="button" variant={saleMode === 'advanced' ? 'default' : 'outline'} disabled={busy || Boolean(saleId)} onClick={() => openSaleDialog('advanced')} className="h-auto min-h-24 flex-col gap-2 whitespace-normal rounded-2xl" aria-keyshortcuts="F2"><span className="text-lg font-semibold">F2 · Venda avançada</span><span className="text-sm font-normal">Selecionar produtos e cliente opcional</span></Button>
           </div>
-          {!cashRegisterOpen && <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><span>Abra seu caixa para iniciar vendas e registrar recebimentos.</span><a href="/caixa" className="font-semibold underline">Abrir caixa</a></div>}
-
-          <form onSubmit={handleSearchSubmit} className="mb-4 flex gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><Input ref={searchRef} autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar produto ou escanear código de barras" className="h-12 border-0 bg-slate-50 pl-11 text-base shadow-none focus-visible:ring-orange-500" aria-label="Buscar produto ou código de barras" /></div>
-            <Button type="submit" className="h-12 rounded-xl bg-orange-600 px-5 hover:bg-orange-700"><Search size={18} /><span className="ml-2 hidden sm:inline">Buscar</span></Button>
-          </form>
-
-          <div className="mb-3 flex items-center justify-between px-1"><h3 className="font-semibold">Produtos</h3><span className="text-sm text-slate-500">{loadingProducts ? 'Buscando…' : `${products.length} encontrados`}</span></div>
-          {products.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {products.map((product) => {
-              const stock = Number(product.stockQuantity);
-              return <button key={product.id} type="button" onClick={() => addProduct(product)} disabled={stock <= 0 || Boolean(saleId)} className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
-                <div className="mb-5 flex items-start justify-between gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-700"><PackageSearch size={21} /></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${stock > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{stock > 0 ? `${product.stockQuantity} ${product.unitOfMeasure} em estoque` : 'Sem estoque'}</span></div>
-                <h4 className="line-clamp-2 min-h-12 font-semibold leading-6">{product.name}</h4>
-                <p className="mt-1 truncate text-xs text-slate-500">{product.sku ? `SKU ${product.sku}` : 'Sem SKU'}{product.stockAisle ? ` · Corredor ${product.stockAisle}` : ''}{product.stockShelf ? ` · Prateleira ${product.stockShelf}` : ''}</p>
-                <div className="mt-4 flex items-end justify-between"><p className="text-lg font-semibold tabular-nums">{money(Number(product.price))}<span className="ml-1 text-xs font-normal text-slate-500">/ {product.unitOfMeasure}</span></p><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700 transition group-hover:bg-orange-600 group-hover:text-white"><Plus size={18} /></span></div>
-              </button>;
-            })}
-          </div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center"><div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500"><PackageSearch size={23} /></div><p className="font-medium">{loadingProducts ? 'Carregando catálogo…' : 'Nenhum produto encontrado'}</p><p className="mt-1 text-sm text-slate-500">Tente buscar por outro nome, SKU ou código de barras.</p></div>}
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <p className="text-sm font-semibold uppercase tracking-wide text-orange-700">{saleMode === 'quick' ? 'Venda rápida' : 'Venda avançada'}</p>
+            <p className="my-5 text-5xl font-semibold tabular-nums">{money(total)}</p>
+            <p className="text-sm text-slate-500">{saleMode === 'quick' ? 'Informe o valor e escolha a forma de pagamento ao lado.' : `${cart.length} produtos selecionados. Confira o carrinho e prossiga para o pagamento.`}</p>
+            <Button type="button" variant="outline" disabled={busy || Boolean(saleId)} className="mt-6" onClick={() => openSaleDialog(saleMode)}>{saleMode === 'quick' ? 'Informar / editar valor' : 'Selecionar / editar produtos'}</Button>
+          </div>
         </section>
 
         <aside className="h-fit rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-5">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-semibold">Carrinho</h2><p className="text-sm text-slate-500">{cart.length} {cart.length === 1 ? 'item' : 'itens'}</p></div><button type="button" onClick={resetSale} disabled={!cart.length || busy || Boolean(saleId)} className="text-sm font-medium text-slate-500 hover:text-red-600 disabled:opacity-40">Limpar</button></div>
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-semibold">{saleMode === 'quick' ? 'Venda rápida' : 'Carrinho'}</h2><p className="text-sm text-slate-500">{saleMode === 'quick' ? 'Valor livre' : `${cart.length} ${cart.length === 1 ? 'item' : 'itens'}`}</p></div><button type="button" onClick={resetSale} disabled={!hasSaleValue || busy || Boolean(saleId)} className="text-sm font-medium text-slate-500 hover:text-red-600 disabled:opacity-40">Limpar</button></div>
           <div className="max-h-[min(46vh,480px)] min-h-40 overflow-y-auto px-5">
-            {!cart.length ? <div className="flex h-40 flex-col items-center justify-center text-center"><ShoppingBag className="mb-2 text-slate-300" size={28} /><p className="text-sm text-slate-500">Adicione produtos para iniciar a venda.</p></div> : <ul className="divide-y divide-slate-100">{cart.map(({ product, quantity }) => <li key={product.id} className="py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium leading-5">{product.name}</p><p className="mt-1 text-xs text-slate-500">{money(Number(product.price))} / {product.unitOfMeasure}</p></div><button type="button" onClick={() => setQuantity(product.id, 0)} disabled={Boolean(saleId)} aria-label={`Remover ${product.name}`} className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30"><Trash2 size={16} /></button></div><div className="mt-3 flex items-center justify-between"><div className="flex items-center rounded-lg border border-slate-200"><button type="button" onClick={() => setQuantity(product.id, quantity - (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Diminuir quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Minus size={15} /></button><input aria-label={`Quantidade de ${product.name}`} type="number" min={product.sellByFraction ? '0.001' : '1'} step={product.sellByFraction ? '0.001' : '1'} value={quantity} disabled={Boolean(saleId)} onChange={(event) => setQuantity(product.id, Number(event.target.value))} className="w-16 border-x border-slate-200 py-1 text-center text-sm tabular-nums outline-none disabled:bg-slate-50" /><button type="button" onClick={() => setQuantity(product.id, quantity + (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Aumentar quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Plus size={15} /></button></div><span className="font-semibold tabular-nums">{money(Number(product.price) * quantity)}</span></div><p className="mt-1 text-right text-[11px] text-slate-400">{product.sellByFraction ? 'Venda fracionada' : 'Unidade inteira'}</p></li>)}</ul>}
+            {saleMode === 'quick' ? <div className="flex h-40 flex-col items-center justify-center gap-2 text-center"><p className="font-medium">Venda sem produto cadastrado</p><p className="text-2xl font-semibold tabular-nums">{money(subtotal)}</p><p className="text-xs text-slate-500">Sem movimentação de estoque</p></div> : !cart.length ? <div className="flex h-40 flex-col items-center justify-center text-center"><ShoppingBag className="mb-2 text-slate-300" size={28} /><p className="text-sm text-slate-500">Adicione produtos para iniciar a venda.</p></div> : <ul className="divide-y divide-slate-100">{cart.map(({ product, quantity }) => <li key={product.id} className="py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium leading-5">{product.name}</p><p className="mt-1 text-xs text-slate-500">{money(Number(product.price))} / {product.unitOfMeasure}</p></div><button type="button" onClick={() => setQuantity(product.id, 0)} disabled={Boolean(saleId)} aria-label={`Remover ${product.name}`} className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30"><Trash2 size={16} /></button></div><div className="mt-3 flex items-center justify-between"><div className="flex items-center rounded-lg border border-slate-200"><button type="button" onClick={() => setQuantity(product.id, quantity - (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Diminuir quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Minus size={15} /></button><input aria-label={`Quantidade de ${product.name}`} type="number" min={product.sellByFraction ? '0.001' : '1'} step={product.sellByFraction ? '0.001' : '1'} value={quantity} disabled={Boolean(saleId)} onChange={(event) => setQuantity(product.id, Number(event.target.value))} className="w-16 border-x border-slate-200 py-1 text-center text-sm tabular-nums outline-none disabled:bg-slate-50" /><button type="button" onClick={() => setQuantity(product.id, quantity + (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Aumentar quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Plus size={15} /></button></div><span className="font-semibold tabular-nums">{money(Number(product.price) * quantity)}</span></div><p className="mt-1 text-right text-[11px] text-slate-400">{product.sellByFraction ? 'Venda fracionada' : 'Unidade inteira'}</p></li>)}</ul>}
           </div>
 
           <div className="space-y-3 border-t border-slate-100 px-5 py-4">
             <div className="flex items-center justify-between text-sm"><span className="text-slate-600">Subtotal</span><span className="tabular-nums">{money(subtotal)}</span></div>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><label htmlFor="sale-discount" className="text-slate-600">Desconto</label><div className="flex gap-2"><select aria-label="Tipo de desconto" value={discountMode} disabled={Boolean(saleId)} onChange={(event) => { setDiscountMode(event.target.value as 'amount' | 'percent'); setDiscount('0'); }} className="h-9 rounded-md border border-slate-200 bg-white px-2 disabled:bg-slate-50"><option value="amount">R$</option><option value="percent">%</option></select><Input id="sale-discount" type="number" min="0" max={discountMode === 'percent' ? 100 : subtotal} step="0.01" value={discount} disabled={Boolean(saleId)} onChange={(event) => setDiscount(event.target.value)} className="h-9 w-28 text-right tabular-nums" /></div></div>
+            {saleMode === 'advanced' && <>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><label htmlFor="sale-discount" className="text-slate-600">Desconto</label><div className="flex gap-2"><select aria-label="Tipo de desconto" value={discountMode} disabled={Boolean(saleId)} onChange={(event) => { setDiscountMode(event.target.value as 'amount' | 'percent'); setDiscount('0'); }} className="h-9 rounded-md border border-slate-200 bg-white px-2 disabled:bg-slate-50"><option value="amount">R$</option><option value="percent">%</option></select><>{discountMode === 'amount' ? <MoneyInput id="sale-discount" value={discount} disabled={Boolean(saleId)} onValueChange={setDiscount} className="h-9 w-28 text-right tabular-nums" /> : <Input id="sale-discount" type="number" min="0" max="100" step="0.01" value={discount} disabled={Boolean(saleId)} onChange={event => setDiscount(event.target.value)} className="h-9 w-28 text-right tabular-nums" />}</></div></div>
             {discountMode === 'percent' && <p className="text-right text-xs text-slate-500">Desconto aplicado: {money(discountValue)}</p>}
+            </>}
             <div className="flex items-end justify-between border-t border-slate-100 pt-3"><span className="font-semibold">Total</span><span className="text-2xl font-semibold tracking-tight tabular-nums">{money(total)}</span></div>
           </div>
 
           {!awaitingPayment && !cashDue && !completed && <div className="px-5 pb-5">
-            <CustomerPicker selected={selectedCustomer} disabled={Boolean(saleId) || busy} onSelect={selectCustomer} />
+            {saleMode === 'advanced' && <p className="mb-3 text-sm text-slate-600">Cliente: {selectedCustomer?.name ?? 'Não identificado'} <button type="button" disabled={Boolean(saleId) || busy} onClick={() => openSaleDialog('advanced')} className="ml-2 underline">Alterar</button></p>}
             <label className="mb-2 block text-sm font-medium" htmlFor="payment-method">Forma de pagamento</label>
             {paymentOptions.length ? <div className="relative"><select id="payment-method" value={selectedOption} onChange={(event) => setSelectedOption(event.target.value)} disabled={!paymentEditable} className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-9 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-50">{paymentOptions.map((option) => { const value = option.provider + option.method + option.terminalId; const methodLabel = option.provider === 'split' ? 'Dividido' : option.method === 'pix' ? 'Pix' : option.method === 'cash' ? 'Dinheiro' : option.method === 'credit_card' ? 'Crédito' : 'Débito'; return <option key={value} value={value}>{option.label} · {methodLabel}</option>; })}</select><ChevronDown className="pointer-events-none absolute right-3 top-3 text-slate-400" size={18} /></div> : <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Nenhuma forma de pagamento está ativa. Peça ao responsável para configurar uma opção.</p>}
             {needsCustomerEmail && <label className="mt-3 block text-sm font-medium" htmlFor="customer-email">E-mail do comprador<Input id="customer-email" type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder={selectedPayment.environment === 'sandbox' ? 'comprador@testuser.com' : 'comprador@exemplo.com'} disabled={!paymentEditable} className="mt-2 h-10" required />{selectedPayment.environment === 'sandbox' && <span className="mt-1 block text-xs font-normal text-slate-500">No Sandbox, use um e-mail de teste com final @testuser.com.</span>}</label>}
             {needsPagarmeCustomer && <fieldset className="mt-3 space-y-3 rounded-xl border border-slate-200 p-3"><legend className="px-1 text-sm font-medium">Dados para cobrança Pix Pagar.me</legend><p className="text-xs text-slate-500">Para gerar o Pix, informe nome, e-mail, CPF/CNPJ e celular com DDD. Algumas contas Pagar.me PSP também exigem endereço; deixe os dados extras fechados se não forem solicitados.</p><div className="grid grid-cols-2 gap-2"><Input autoComplete="name" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Nome completo" aria-label="Nome completo do comprador" className="col-span-2 h-10" /><Input type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="E-mail" aria-label="E-mail do comprador" className="h-10" /><Input value={customerDocument} onChange={(event) => setCustomerDocument(event.target.value)} placeholder="CPF/CNPJ" aria-label="CPF ou CNPJ do comprador" className="h-10" /><Input type="tel" autoComplete="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Celular com DDD" aria-label="Celular do comprador" className="col-span-2 h-10" /></div><details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-medium text-slate-700">Endereço (se exigido pela conta Pagar.me)</summary><div className="mt-3 grid grid-cols-2 gap-2"><Input autoComplete="postal-code" value={customerZipCode} onChange={(event) => setCustomerZipCode(event.target.value)} placeholder="CEP" aria-label="CEP do comprador" className="h-10" /><Input autoComplete="address-level2" value={customerCity} onChange={(event) => setCustomerCity(event.target.value)} placeholder="Cidade" aria-label="Cidade do comprador" className="h-10" /><Input autoComplete="address-line1" value={customerStreet} onChange={(event) => setCustomerStreet(event.target.value)} placeholder="Rua" aria-label="Rua do comprador" className="h-10" /><Input value={customerNumber} onChange={(event) => setCustomerNumber(event.target.value)} placeholder="Número" aria-label="Número do endereço" className="h-10" /><Input value={customerNeighborhood} onChange={(event) => setCustomerNeighborhood(event.target.value)} placeholder="Bairro" aria-label="Bairro do comprador" className="h-10" /><Input value={customerState} onChange={(event) => setCustomerState(event.target.value.toUpperCase().slice(0, 2))} placeholder="UF" aria-label="Estado do comprador" maxLength={2} className="h-10" /></div></details>{hasOptionalAddress && !optionalAddressComplete && <p className="text-xs text-red-600">Preencha todos os campos do endereço ou deixe-os vazios.</p>}</fieldset>}
-            <Button type="button" onClick={startCheckout} disabled={!cart.length || !selectedPayment || busy || total <= 0 || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsPagarmeCustomer && !pagarmeCustomerValid)} className="mt-4 h-12 w-full rounded-xl bg-orange-600 text-base font-semibold hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={18} /> : <CreditCard className="mr-2" size={18} />}{saleId ? 'Tentar pagamento' : `Cobrar ${money(total)}`}</Button>
+            <Button ref={paymentButtonRef} type="button" onClick={startCheckout} disabled={!hasSaleValue || !selectedPayment || busy || total <= 0 || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsPagarmeCustomer && !pagarmeCustomerValid)} className="mt-4 h-12 w-full rounded-xl bg-orange-600 text-base font-semibold hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={18} /> : <CreditCard className="mr-2" size={18} />}{saleId ? 'Tentar pagamento' : `Cobrar ${money(total)}`}</Button>
             {saleId && !awaitingPayment && <button type="button" onClick={() => void cancelSale()} disabled={busy} className="mt-2 w-full py-1 text-sm font-medium text-slate-500 hover:text-red-600">Cancelar venda e liberar estoque</button>}
-            <p className="mt-2 text-center text-xs text-slate-500">O estoque é reservado ao iniciar a cobrança.</p>
+            <p className="mt-2 text-center text-xs text-slate-500">{saleMode === 'quick' ? 'Venda rápida não movimenta o estoque.' : 'O estoque é reservado ao iniciar a cobrança.'}</p>
           </div>}
 
           {cashDue && <div className="space-y-4 px-5 pb-5">
@@ -572,11 +605,11 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
               <p className="mt-1 text-sm text-emerald-800">Total da compra: {money(amountDue)}</p>
               {selectedPayment?.provider === 'split' && <>
                 <label htmlFor="split-cash-amount" className="mt-4 block text-sm font-medium text-slate-800">Parcela que será paga em dinheiro</label>
-                <Input id="split-cash-amount" type="number" inputMode="decimal" min="0.01" max={(Math.max(0, amountDue - 0.01)).toFixed(2)} step="0.01" value={splitCashAmount} onChange={(event) => setSplitCashAmount(event.target.value)} className="mt-2 h-11 bg-white text-right tabular-nums" />
+                <MoneyInput id="split-cash-amount" value={splitCashAmount} onValueChange={setSplitCashAmount} className="mt-2 h-11 bg-white text-right tabular-nums" />
                 <p className="mt-2 text-sm text-emerald-900">Restante no Pix: <strong>{money(Math.max(0, splitPixBalanceCents) / 100)}</strong></p>
               </>}
               <label htmlFor="cash-received" className="mt-4 block text-sm font-medium text-slate-800">Quanto o cliente entregou em dinheiro?</label>
-              <Input id="cash-received" type="number" inputMode="decimal" min={(activeCashContribution / 100).toFixed(2)} step="0.01" autoFocus value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} placeholder="0,00" className="mt-2 h-12 bg-white text-right text-xl tabular-nums" />
+              <MoneyInput id="cash-received" autoFocus value={cashReceived} onValueChange={setCashReceived} placeholder="0,00" className="mt-2 h-12 bg-white text-right text-xl tabular-nums" />
               {selectedPayment?.provider === 'split' && needsCustomerEmail && <label className="mt-4 block text-sm font-medium text-slate-800" htmlFor="split-customer-email">E-mail do comprador para o Pix<Input id="split-customer-email" type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder={selectedPayment.environment === 'sandbox' ? 'comprador@testuser.com' : 'comprador@exemplo.com'} className="mt-2 h-10 bg-white" required />{selectedPayment.environment === 'sandbox' && <span className="mt-1 block text-xs font-normal text-slate-500">No Sandbox, use um e-mail de teste terminado em @testuser.com.</span>}</label>}
               <div className="mt-3 flex items-center justify-between border-t border-emerald-200 pt-3 text-sm">
                 <span className="text-emerald-900">{cashChangeCents === null ? 'Valor insuficiente' : 'Troco em dinheiro'}</span>
@@ -607,6 +640,48 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
           {completed && saleId && <div className="px-5 pb-5"><ReceiptPreview saleId={saleId} /></div>}
         </aside>
       </div>
+
+      <dialog ref={saleDialog} aria-labelledby="sale-mode-title" onClose={() => (saleMode === 'quick' ? quickButtonRef : advancedButtonRef).current?.focus()} className="m-auto max-h-[90dvh] w-[min(95vw,1100px)] overflow-y-auto rounded-2xl border bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/50">
+        <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white p-5"><h2 id="sale-mode-title" className="text-xl font-semibold">{saleMode === 'quick' ? 'F1 · Venda rápida' : 'F2 · Venda avançada'}</h2><button type="button" onClick={() => saleDialog.current?.close()} aria-label="Fechar modal da venda" className="rounded-lg p-2 hover:bg-slate-100"><X size={20} /></button></header>
+        <div className="p-5">
+          {saleMode === 'quick' ? <form onSubmit={event => { event.preventDefault(); if (Number(quickAmount) > 0) { saleDialog.current?.close(); paymentButtonRef.current?.focus(); } }} className="mx-auto max-w-md space-y-5 py-6">
+            <p className="text-sm text-slate-600">Informe apenas o valor. Não é necessário cadastrar produto ou cliente.</p>
+            <label htmlFor="quick-sale-amount" className="block text-sm font-medium">Valor da venda (R$)</label>
+            <MoneyInput ref={quickAmountRef} id="quick-sale-amount" value={quickAmount} onValueChange={setQuickAmount} required className="h-20 text-right text-4xl tabular-nums" />
+            <p className="text-sm text-slate-500">Digite 1234 para R$ 12,34.</p>
+            <Button type="submit" disabled={Number(quickAmount) <= 0 || !quickAmount} className="h-12 w-full bg-orange-600 hover:bg-orange-700">Continuar para pagamento · {money(total)}</Button>
+          </form> : <>
+        <section className="min-w-0">
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <div><h2 className="text-2xl font-semibold tracking-tight">Produtos da venda avançada</h2><p className="mt-1 text-sm text-slate-500">Pesquise ou leia o código de barras para adicionar produtos.</p></div>
+            <Button type="button" variant="outline" className="hidden sm:inline-flex" onClick={() => searchRef.current?.focus()}><Barcode className="mr-2" size={17} />Leitor de código</Button>
+          </div>
+          {!cashRegisterOpen && <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><span>Abra seu caixa para iniciar vendas e registrar recebimentos.</span><a href="/caixa" className="font-semibold underline">Abrir caixa</a></div>}
+
+          <form onSubmit={handleSearchSubmit} className="mb-4 flex gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><Input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar produto ou escanear código de barras" className="h-12 border-0 bg-slate-50 pl-11 text-base shadow-none focus-visible:ring-orange-500" aria-label="Buscar produto ou código de barras" /></div>
+            <Button type="submit" className="h-12 rounded-xl bg-orange-600 px-5 hover:bg-orange-700"><Search size={18} /><span className="ml-2 hidden sm:inline">Buscar</span></Button>
+          </form>
+
+          <div className="mb-3 flex items-center justify-between px-1"><h3 className="font-semibold">Produtos</h3><span className="text-sm text-slate-500">{loadingProducts ? 'Buscando…' : `${products.length} encontrados`}</span></div>
+          {products.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {products.map((product) => {
+              const stock = Number(product.stockQuantity);
+              return <button key={product.id} type="button" onClick={() => addProduct(product)} disabled={stock <= 0 || Boolean(saleId)} className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
+                <div className="mb-5 flex items-start justify-between gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-700"><PackageSearch size={21} /></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${stock > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{stock > 0 ? `${product.stockQuantity} ${product.unitOfMeasure} em estoque` : 'Sem estoque'}</span></div>
+                <h4 className="line-clamp-2 min-h-12 font-semibold leading-6">{product.name}</h4>
+                <p className="mt-1 truncate text-xs text-slate-500">{product.sku ? `SKU ${product.sku}` : 'Sem SKU'}{product.stockAisle ? ` · Corredor ${product.stockAisle}` : ''}{product.stockShelf ? ` · Prateleira ${product.stockShelf}` : ''}</p>
+                <div className="mt-4 flex items-end justify-between"><p className="text-lg font-semibold tabular-nums">{money(Number(product.price))}<span className="ml-1 text-xs font-normal text-slate-500">/ {product.unitOfMeasure}</span></p><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700 transition group-hover:bg-orange-600 group-hover:text-white"><Plus size={18} /></span></div>
+              </button>;
+            })}
+          </div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center"><div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500"><PackageSearch size={23} /></div><p className="font-medium">{loadingProducts ? 'Carregando catálogo…' : 'Nenhum produto encontrado'}</p><p className="mt-1 text-sm text-slate-500">Tente buscar por outro nome, SKU ou código de barras.</p></div>}
+        </section>
+
+            <div className="mt-5 rounded-xl border p-4"><CustomerPicker selected={selectedCustomer} disabled={busy} onSelect={selectCustomer} /></div>
+          </>}
+        </div>
+        {saleMode === 'advanced' && <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-white p-5"><p>{cart.length} produtos · <strong>{money(total)}</strong></p><Button type="button" disabled={!cart.length} onClick={() => { saleDialog.current?.close(); paymentButtonRef.current?.focus(); }} className="bg-orange-600 hover:bg-orange-700">Continuar para pagamento</Button></footer>}
+      </dialog>
 
       {message && <div role="status" className="fixed bottom-5 left-1/2 z-40 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl"><CircleAlert size={17} />{message}<button type="button" aria-label="Fechar aviso" onClick={() => setMessage('')} className="ml-2 text-slate-300 hover:text-white"><X size={16} /></button></div>}
 

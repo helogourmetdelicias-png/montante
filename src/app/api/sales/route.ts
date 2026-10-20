@@ -18,14 +18,15 @@ class SaleInputError extends Error {
   }
 }
 
-function getRequestHash(items: Array<{ productId: string; quantityMilli: number }>, discountCents: number, customerId?: string) {
-  return createHash('sha256').update(JSON.stringify({ items, discountCents, ...(customerId ? { customerId } : {}) })).digest('hex');
+function getRequestHash(items: Array<{ productId: string; quantityMilli: number }>, discountCents: number, customerId?: string, quickAmount?: number) {
+  return createHash('sha256').update(JSON.stringify({ items, discountCents, ...(customerId ? { customerId } : {}), ...(quickAmount !== undefined ? { quickAmountCents: Math.round(quickAmount * 100) } : {}) })).digest('hex');
 }
 
 function serializeSale(sale: {
   id: string;
   sale_number: number;
   status: string;
+  is_quick_sale: boolean;
   total_amount: Prisma.Decimal;
   amount_received: Prisma.Decimal | null;
   change_amount: Prisma.Decimal | null;
@@ -39,6 +40,7 @@ function serializeSale(sale: {
     id: sale.id,
     saleNumber: sale.sale_number,
     status: sale.status,
+    mode: sale.is_quick_sale ? 'quick' : 'advanced',
     totalAmount: sale.total_amount.toFixed(2),
     discountAmount: sale.discount_amount.toFixed(2),
     customerId: sale.customer_id,
@@ -110,7 +112,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'A quantidade total por produto excede o limite permitido.' }, { status: 400 });
   }
   const discountCents = Math.round(input.discountAmount * 100);
-  const requestHash = getRequestHash(items, discountCents, input.customerId);
+  const requestHash = getRequestHash(items, discountCents, input.customerId, input.quickAmount);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + RESERVATION_MINUTES * 60 * 1000);
 
@@ -147,7 +149,7 @@ export async function POST(request: Request) {
       if (products.length !== items.length) throw new SaleInputError('Um ou mais produtos não existem ou estão inativos nesta loja.', 404);
 
       const saleItems: Array<{ product_id: string; quantity: Prisma.Decimal; unit_price: Prisma.Decimal; total_price: Prisma.Decimal }> = [];
-      let totalAmount = new Prisma.Decimal(0);
+      let totalAmount = new Prisma.Decimal(input.mode === 'quick' ? input.quickAmount! : 0);
       for (const item of items) {
         const product = productsById.get(item.productId)!;
         const quantity = new Prisma.Decimal(item.quantityMilli).div(1000);
@@ -188,6 +190,7 @@ export async function POST(request: Request) {
           tenant_id: tenantId,
           sale_number: tenant.sales_sequence,
           status: 'pending',
+          is_quick_sale: input.mode === 'quick',
           total_amount: totalAmount,
           discount_amount: discountAmount,
           idempotency_key: input.idempotencyKey,

@@ -8,6 +8,9 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 
 ## Feito e validado
 
+- [x] Venda rápida por valor livre sem produto/cliente implementada em `POST /api/sales`, com caixa obrigatório, validação em centavos, modo persistido e idempotência incluindo o valor. Migration `20261020000200_quick_sales` aplicada. Integração com banco validou dinheiro/troco, permissões/isolamento, reexecução, comprovante, relatórios, contagem da assinatura, cancelamento/expiração sem estoque e preservação da venda avançada. Fixtures removidas.
+- [x] PDV com modais F1 Venda rápida e F2 Venda avançada; navegador local validou os dois atalhos, seleção de produto, fluxo rápido sem produto/cliente, `1234 → 12,34`, recebido `2000 → 20,00`, troco R$ 7,66 e conclusão. Desconto em reais também conferido. Campos monetários do PDV, caixa e preço do produto compartilham a máscara bancária; quantidades e percentuais preservam formato próprio. `npm test` passou 36/36; validação final de build e publicação registradas abaixo quando concluídas. Guia em `docs/quick-sales.md`.
+
 - [x] Assinaturas: trial de 3 meses desde o cadastro (regra comercial prevaleceu sobre a menção técnica a 6 meses), planos Padrão R$ 49,90 até 500 vendas e Avançado R$ 79,00 acima de 500, com regressão automática. Apuração por tenant, status `completed` e `sold_at` em ciclos mensais no aniversário UTC do cadastro; primeira fatura ao fim do trial, referente ao ciclo pago seguinte. Vencimento adotado: 7 dias. Job protegido `GET`/`POST /api/cron/billing`, paginação de 100 tenants, recuperação de até 12 ciclos por tenant por execução, transações serializáveis e idempotência implementados.
 - [x] Migration `20261020000100_subscriptions` aplicada ao banco conectado; `prisma migrate status` confirmou atualização. Lojas existentes preservam a data original de cadastro. `npm test` passou 33/33; TypeScript e build de produção sem lint passaram. Integração `node --env-file=.env tests/billing.database.cjs` validou trial sem cobrança, 501 vendas, status/datas, isolamento, concorrência sem fatura duplicada, regressão, atraso e recuperação. Fixtures removidas ao finalizar.
 - [x] Cobrança SaaS via Checkout Pro Mercado Pago implementada usando credencial global separada das lojas; baixa por webhook assinado após consulta de aprovação, referência, moeda e valor. Testes dos handlers reais validaram bloqueio de caixa, isolamento de tenant, rejeição de assinatura inválida/valor divergente, baixa e reenvio sem duplicação com provedor simulado. Credencial global consultada em `/users/me`: HTTP 200, conta de teste; nenhum segredo exibido e nenhuma cobrança real criada.
@@ -200,6 +203,11 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 5. Implementar OAuth/adapters dos demais provedores quando priorizados e com documentação/credenciais disponíveis.
 
 ## GitHub e preparação para Vercel
+
+- [x] Venda rápida e máscara monetária: TypeScript e build de produção (`npx next build --no-lint`) passaram em 20/10/2026, incluindo PDV, caixa, produtos e comprovante. Validação local autenticada confirmou F1/F2, entrada em centavos, recebimento em dinheiro e seleção avançada. Nenhuma cobrança externa foi feita; lojas QA foram removidas.
+
+- [x] Assinaturas publicadas em `origin/main` no commit `d3606c9` em 20/10/2026. Check Vercel `montante-um2r` confirmou `success`. No domínio principal, `/assinatura` protege acesso com redirecionamento ao login; `/api/cron/billing` responde `401` sem Bearer, confirmando a nova rota ativa. O segundo projeto `montante` falhou e não atende o domínio principal.
+- [~] Verificação pública após deploy: `/api/webhooks/billing` retorna `503` com “Webhook não configurado”. Configurar o segredo específico da cobrança SaaS e homologar recebimento antes de considerar o pagamento operacional. Conferência visual autenticada continua pendente.
 
 - [x] Relatórios, histórico de cliente e compartilhamento WhatsApp publicados em `origin/main` no commit `ed5a354`; check `Vercel – montante-um2r` confirmado como sucesso. WhatsApp abre mensagem pronta (resumo em texto; histórico da página atual), com envio pelo usuário. Conferência visual e envio pelo próprio usuário permanecem pendentes.
 
