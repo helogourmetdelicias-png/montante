@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import StoreNavigation from '@/components/store-navigation';
+import CatalogExcelControls from '@/components/catalog-excel-controls';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -75,6 +76,7 @@ export default function CustomerCatalog() {
   return <main className="min-h-screen bg-slate-50 p-4 text-slate-900 sm:p-8"><div className="mx-auto max-w-6xl space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-2xl font-semibold">Clientes</h1><p className="text-sm text-slate-500">Cadastre uma vez e selecione o cliente no PDV.</p></div><StoreNavigation activePage="customers" canManageStore /></header>
     <div className="flex flex-wrap gap-3"><Input aria-label="Buscar clientes" placeholder="Buscar por nome, CPF/CNPJ, e-mail ou telefone" value={query} onChange={event => { setQuery(event.target.value); setPage(1); }} className="min-w-48 flex-1 bg-white" /><Button disabled={busy} onClick={() => edit()} className="bg-orange-600 hover:bg-orange-700">Novo cliente</Button></div>
+    <CatalogExcelControls kind="customers" onImported={load} />
     {message && <p role="status" className="rounded-lg border bg-white p-3 text-sm">{message}</p>}
     <div className="overflow-x-auto rounded-xl border bg-white"><table className="w-full text-left text-sm"><thead className="bg-slate-100"><tr>{['Cliente', 'CPF/CNPJ', 'Contato', 'Situação', 'Ações'].map(label => <th key={label} className="p-4">{label}</th>)}</tr></thead><tbody>{customers.map(customer => <tr key={customer.id} className="border-t"><td className="p-4 font-medium">{customer.name}</td><td className="p-4">{customer.document || '—'}</td><td className="p-4"><p>{customer.email || '—'}</p><p>{customer.phone}</p></td><td className="p-4">{customer.isActive ? 'Ativo' : 'Inativo'}</td><td className="whitespace-nowrap p-4"><a href={`/clientes/${customer.id}`} className="mr-4 font-medium text-orange-700 underline">Histórico</a><button disabled={busy} onClick={() => edit(customer)} className="mr-4 font-medium text-orange-700 underline disabled:opacity-50">Editar</button>{customer.isActive && <button disabled={busy} onClick={() => void remove(customer)} className="text-red-700 underline disabled:opacity-50">Excluir</button>}</td></tr>)}</tbody></table>{!customers.length && <p className="p-6 text-center text-slate-500">{loading ? 'Carregando…' : 'Nenhum cliente encontrado.'}</p>}</div>
     <div className="flex items-center justify-between gap-3 text-sm"><span>{total} clientes · Página {page}</span><div className="flex gap-3"><button disabled={page <= 1 || loading} onClick={() => setPage(page - 1)} className="underline disabled:opacity-40">Anterior</button><button disabled={page * 25 >= total || loading} onClick={() => setPage(page + 1)} className="underline disabled:opacity-40">Próxima</button></div></div>

@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { BarChart3, CreditCard, Menu, PanelLeftClose, PanelLeftOpen, Package, Settings, ShoppingBag, Users, Wallet, X } from 'lucide-react';
+import { BarChart3, Menu, PanelLeftClose, PanelLeftOpen, Package, Settings, ShoppingBag, UserCircle, Users, Wallet, X } from 'lucide-react';
 
-type StorePage = 'pdv' | 'sales' | 'customers' | 'products' | 'cash' | 'reports' | 'settings' | 'payments' | 'subscription';
+type StorePage = 'pdv' | 'sales' | 'customers' | 'products' | 'cash' | 'reports' | 'settings' | 'payments' | 'subscription' | 'profile';
 
 type StoreNavigationProps = {
   activePage: StorePage;
@@ -17,7 +17,7 @@ const navigationItems: { href: string; label: string; page: StorePage; icon: typ
   { href: '/caixa', label: 'Caixa', page: 'cash', icon: Wallet },
   { href: '/produtos', label: 'Produtos', page: 'products', icon: Package, managementOnly: true },
   { href: '/clientes', label: 'Clientes', page: 'customers', icon: Users, managementOnly: true },
-  { href: '/assinatura', label: 'Assinatura', page: 'subscription', icon: CreditCard, managementOnly: true },
+  { href: '/perfil', label: 'Perfil', page: 'profile', icon: UserCircle },
   { href: '/relatorios', label: 'Relatórios', page: 'reports', icon: BarChart3, managementOnly: true },
   { href: '/configuracoes/pagamentos', label: 'Configurações', page: 'settings', icon: Settings, managementOnly: true },
 ];

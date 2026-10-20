@@ -87,6 +87,8 @@ export async function GET(request: Request) {
   const page = Number(url.searchParams.get('page') ?? '1');
   const limit = Number(url.searchParams.get('limit') ?? '50');
   const includeInactive = url.searchParams.get('includeInactive') === 'true';
+  const category = url.searchParams.get('category');
+  if (category && category.length > 80) return NextResponse.json({ error: 'Categoria inválida.' }, { status: 400 });
   if (query.length > 100 || !Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
     return NextResponse.json({ error: 'Parâmetros de pesquisa ou paginação inválidos.' }, { status: 400 });
   }
@@ -96,6 +98,7 @@ export async function GET(request: Request) {
 
   const where: Prisma.ProductWhereInput = {
     tenant_id: access.tenantId,
+    ...(category ? category === '__uncategorized' ? { AND: [{ OR: [{ category: null }, { category: '' }] }] } : { category } : {}),
     ...(includeInactive ? {} : { is_active: true }),
     ...(query ? {
       OR: [
@@ -109,7 +112,7 @@ export async function GET(request: Request) {
   const [products, total] = await prisma.$transaction([
     prisma.product.findMany({
       where,
-      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      orderBy: [...(includeInactive ? [{ category: 'asc' as const }] : []), { name: 'asc' }, { id: 'asc' }],
       skip: (page - 1) * limit,
       take: limit,
     }),
@@ -118,6 +121,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     products: products.map(toProductResponse),
+    ...(includeInactive ? { categories: (await prisma.product.findMany({ where: { tenant_id: access.tenantId, category: { not: null } }, distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' } })).map(row => row.category).filter(Boolean) } : {}),
     page,
     limit,
     total,

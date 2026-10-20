@@ -2,7 +2,6 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import PointOfSale from './point-of-sale';
-import SubscriptionNotice from '@/components/subscription-notice';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +19,6 @@ export default async function PointOfSalePage() {
 
   const canManageStore = ['owner', 'admin'].includes(session.user.role);
   return <>
-    {canManageStore && <SubscriptionNotice tenantId={tenantId} />}
     <PointOfSale storeName={tenant.name} initialLogoUrl={tenant.logo_url ?? ''} canManageBrand={canManageStore} operatorName={session.user.name ?? 'Operador'} />
   </>;
 }
