@@ -9,7 +9,8 @@ import StoreNavigation from '@/components/store-navigation';
 import BusinessDate from '@/components/business-date';
 import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
 import ReceiptPreview from './receipt-preview';
-import CustomerPicker, { type SaleCustomer } from './customer-picker';
+import type { SaleCustomer } from './customer-picker';
+import CustomerCheckout from './customer-checkout';
 import { calculateCashChangeCents } from '@/lib/sales/cash-payment';
 
 type Product = {
@@ -67,6 +68,8 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<SaleCustomer | null>(null);
+  const [customerStepOpen, setCustomerStepOpen] = useState(false);
+  const [customerConfirmed, setCustomerConfirmed] = useState(false);
   const [customerDocument, setCustomerDocument] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerZipCode, setCustomerZipCode] = useState('');
@@ -155,6 +158,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
       selectCustomer(null);
     }
     setSaleMode(mode);
+    if (mode === 'advanced') setCustomerConfirmed(false);
     if (!saleDialog.current?.open) saleDialog.current?.showModal();
     requestAnimationFrame(() => (mode === 'quick' ? quickAmountRef : searchRef).current?.focus());
   }
@@ -321,6 +325,10 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   }
 
   async function startCheckout() {
+    if (saleMode === 'advanced' && !saleId && !customerConfirmed && cart.length && !busy) {
+      setCustomerStepOpen(true);
+      return;
+    }
     if ((!saleId && !cashRegisterOpen) || !hasSaleValue || !selectedPayment || busy || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsPagarmeCustomer && !pagarmeCustomerValid)) return;
     setBusy(true);
     setMessage('');
@@ -507,6 +515,8 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   }
 
   function resetSale() {
+    setCustomerStepOpen(false);
+    setCustomerConfirmed(false);
     setCart([]);
     setQuickAmount('');
     setDiscount('0');
@@ -582,7 +592,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
           </div>
 
           {!awaitingPayment && !cashDue && !completed && <div className="px-5 pb-5">
-            {saleMode === 'advanced' && <p className="mb-3 text-sm text-slate-600">Cliente: {selectedCustomer?.name ?? 'Não identificado'} <button type="button" disabled={Boolean(saleId) || busy} onClick={() => openSaleDialog('advanced')} className="ml-2 underline">Alterar</button></p>}
+            {saleMode === 'advanced' && <p className="mb-3 text-sm text-slate-600">Cliente: {selectedCustomer?.name ?? 'Não identificado'} <button type="button" disabled={Boolean(saleId) || busy} onClick={() => setCustomerStepOpen(true)} className="ml-2 underline">Alterar</button></p>}
             <label className="mb-2 block text-sm font-medium" htmlFor="payment-method">Forma de pagamento</label>
             {paymentOptions.length ? <div className="relative"><select id="payment-method" value={selectedOption} onChange={(event) => setSelectedOption(event.target.value)} disabled={!paymentEditable} className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-9 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-50">{paymentOptions.map((option) => { const value = option.provider + option.method + option.terminalId; const methodLabel = option.provider === 'split' ? 'Dividido' : option.method === 'pix' ? 'Pix' : option.method === 'cash' ? 'Dinheiro' : option.method === 'credit_card' ? 'Crédito' : 'Débito'; return <option key={value} value={value}>{option.label} · {methodLabel}</option>; })}</select><ChevronDown className="pointer-events-none absolute right-3 top-3 text-slate-400" size={18} /></div> : <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Nenhuma forma de pagamento está ativa. Peça ao responsável para configurar uma opção.</p>}
             {needsCustomerEmail && <label className="mt-3 block text-sm font-medium" htmlFor="customer-email">E-mail do comprador<Input id="customer-email" type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder={selectedPayment.environment === 'sandbox' ? 'comprador@testuser.com' : 'comprador@exemplo.com'} disabled={!paymentEditable} className="mt-2 h-10" required />{selectedPayment.environment === 'sandbox' && <span className="mt-1 block text-xs font-normal text-slate-500">No Sandbox, use um e-mail de teste com final @testuser.com.</span>}</label>}
@@ -670,11 +680,12 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
           </div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center"><div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500"><PackageSearch size={23} /></div><p className="font-medium">{loadingProducts ? 'Carregando catálogo…' : 'Nenhum produto encontrado'}</p><p className="mt-1 text-sm text-slate-500">Tente buscar por outro nome, SKU ou código de barras.</p></div>}
         </section>
 
-            <div className="mt-5 rounded-xl border p-4"><CustomerPicker selected={selectedCustomer} disabled={busy} onSelect={selectCustomer} /></div>
           </>}
         </div>
-        {saleMode === 'advanced' && <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-white p-5"><p>{cart.length} produtos · <strong>{money(total)}</strong></p><Button type="button" disabled={!cart.length} onClick={() => { saleDialog.current?.close(); paymentButtonRef.current?.focus(); }} className="bg-orange-600 hover:bg-orange-700">Continuar para pagamento</Button></footer>}
+        {saleMode === 'advanced' && <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-white p-5"><p>{cart.length} produtos · <strong>{money(total)}</strong></p><Button type="button" disabled={!cart.length} onClick={() => { saleDialog.current?.close(); setCustomerStepOpen(true); }} className="bg-orange-600 hover:bg-orange-700">Continuar para cliente</Button></footer>}
       </dialog>
+
+      {customerStepOpen && <CustomerCheckout selected={selectedCustomer} canCreate={canManageBrand} onContinue={customer => { selectCustomer(customer); setCustomerConfirmed(true); setCustomerStepOpen(false); requestAnimationFrame(() => paymentButtonRef.current?.focus()); }} onBack={() => { setCustomerStepOpen(false); requestAnimationFrame(() => openSaleDialog('advanced')); }} />}
 
       {message && <div role="status" className="fixed bottom-5 left-1/2 z-40 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl"><CircleAlert size={17} />{message}<button type="button" aria-label="Fechar aviso" onClick={() => setMessage('')} className="ml-2 text-slate-300 hover:text-white"><X size={16} /></button></div>}
 
