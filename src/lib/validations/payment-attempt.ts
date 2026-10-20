@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const createPaymentAttemptSchema = z.object({
   idempotencyKey: z.string().uuid(),
-  provider: z.enum(['mercadopago', 'pagarme', 'pix_manual', 'external_terminal']),
+  provider: z.enum(['mercadopago', 'pagarme', 'pagbank', 'pix_manual', 'external_terminal']),
   method: z.enum(['pix', 'credit_card', 'debit_card']),
   channel: z.enum(['online', 'terminal', 'external_terminal']),
   terminalId: z.string().cuid().optional(),
@@ -28,6 +28,9 @@ export const createPaymentAttemptSchema = z.object({
     if (!value.customerName?.trim() || !value.customerEmail || ![11, 14].includes(documentLength ?? 0) || ![10, 11].includes(phoneLength ?? 0)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['customerName'], message: 'Para cobrar com Pix Pagar.me, informe nome, e-mail, CPF/CNPJ válido e celular com DDD.' });
     }
+  }
+  if (value.provider === 'pagbank' && (!value.customerName?.trim() || !value.customerEmail || ![11, 14].includes(value.customerDocument?.replace(/\D/g, '').length ?? 0))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['customerName'], message: 'Para Pix PagBank, informe nome, e-mail e CPF/CNPJ do comprador.' });
   }
   if (value.provider === 'external_terminal' && (!value.terminalId || value.channel !== 'external_terminal')) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['terminalId'], message: 'Selecione uma maquininha externa ativa.' });

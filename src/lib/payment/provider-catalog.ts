@@ -48,9 +48,9 @@ export const PAYMENT_PROVIDER_CATALOG: PaymentProviderDefinition[] = [
   {
     id: 'pagbank',
     label: 'PagBank',
-    state: 'planned',
-    available: { methods: [], channels: [] },
-    planned: { methods: ['pix', 'credit_card', 'debit_card'], channels: ['online', 'terminal'] },
+    state: 'available',
+    available: { methods: ['pix'], channels: ['online'] },
+    planned: { methods: ['credit_card', 'debit_card'], channels: ['online', 'terminal'] },
     requiresMerchantAuthorization: true,
   },
   {

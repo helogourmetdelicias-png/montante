@@ -30,6 +30,7 @@ export async function releaseExpiredSales(tx: Transaction, tenantId: string, now
           OR: [
             { provider: 'mercadopago', status: { in: ['CREATED', 'PENDING'] } },
             { provider: 'mercadopago', status: 'APPROVED', external_order_id: { not: null } },
+            { provider: 'pagbank', status: { in: ['CREATED', 'PENDING', 'APPROVED'] } },
             { provider: 'cash', status: 'APPROVED' },
           ],
         },

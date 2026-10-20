@@ -1,6 +1,6 @@
 import { auth } from '@/auth';
 import { decryptCredentials } from '@/lib/encryption';
-import { getPaymentGateway, type PaymentProvider } from '@/lib/payment/gateway-adapter';
+import { getPaymentGateway, PagBankGateway, type PaymentProvider } from '@/lib/payment/gateway-adapter';
 import { prisma } from '@/lib/prisma';
 import { applyPaymentResult } from '@/lib/sales/payment-result';
 import { runSerializableTransaction } from '@/lib/database/transactions';
@@ -20,7 +20,7 @@ export async function GET(_request: Request, context: { params: { id: string; at
   const attempt = await prisma.paymentAttempt.findFirst({
     where: { id: context.params.attemptId, sale_id: context.params.id, tenant_id: tenantId },
     include: {
-      gateway_config: { select: { encrypted_credentials: true } },
+      gateway_config: { select: { encrypted_credentials: true, environment: true } },
       sale: { select: { status: true, total_amount: true, cash_register_session_id: true } },
     },
   });
@@ -33,20 +33,24 @@ export async function GET(_request: Request, context: { params: { id: string; at
   if (!openRegister && attempt.status !== PaymentAttemptStatus.APPROVED) return NextResponse.json({ error: 'O caixa desta venda foi fechado. Abra um novo turno para acompanhar a cobrança.' }, { status: 409 });
 
   let status = attempt.status.toLowerCase();
-  if (['mercadopago', 'pagarme'].includes(attempt.provider) &&
+  if (['mercadopago', 'pagarme', 'pagbank'].includes(attempt.provider) &&
     (attempt.status === PaymentAttemptStatus.CREATED || attempt.status === PaymentAttemptStatus.PENDING) &&
     attempt.external_order_id && attempt.gateway_config?.encrypted_credentials) {
     try {
       const credentials = decryptCredentials(attempt.gateway_config.encrypted_credentials);
-      const providerCredential = attempt.provider === 'mercadopago' ? credentials.access_token : credentials.api_key;
+      const providerCredential = attempt.provider === 'mercadopago' ? credentials.access_token : attempt.provider === 'pagbank' ? credentials.token : credentials.api_key;
       if (typeof providerCredential !== 'string' || !providerCredential) {
         return NextResponse.json({ error: 'A credencial de pagamento não está disponível.' }, { status: 503 });
       }
 
-      const providerStatus = await getPaymentGateway(attempt.provider as PaymentProvider, credentials).checkStatus(attempt.external_order_id);
+      const gateway = getPaymentGateway(attempt.provider as PaymentProvider, credentials, { environment: attempt.gateway_config.environment });
+      const providerStatus = gateway instanceof PagBankGateway
+        ? await gateway.checkStatus(attempt.external_order_id, Number(attempt.amount.mul(100).toString()))
+        : await gateway.checkStatus(attempt.external_order_id);
       if (providerStatus !== 'pending') {
         const updated = await runSerializableTransaction((tx) => applyPaymentResult(tx, {
           tenantId,
+          provider: attempt.provider,
           saleId: attempt.sale_id,
           attemptId: attempt.id,
           method: attempt.method.toLowerCase(),

@@ -340,23 +340,80 @@ export class AsaasGateway implements PaymentGateway {
   }
 }
 
+export class PagBankUncertainError extends Error {
+  readonly externalId?: string;
+  constructor(externalId?: string) { super('PagBank: não foi possível confirmar o resultado da solicitação. A cobrança foi mantida pendente para conciliação, sem liberar o estoque ou gerar outra cobrança.'); this.externalId = externalId; }
+}
+
 export class PagBankGateway implements PaymentGateway {
   readonly provider: PaymentProvider = 'pagbank';
   private readonly token: string;
+  private readonly apiBaseUrl: string;
 
-  constructor(token: string) {
-    this.token = token;
+  constructor(token: string, environment: 'sandbox' | 'production' = 'sandbox') {
+    if (typeof token !== 'string' || !token.trim()) throw new Error('Informe o token da API de Pedidos PagBank.');
+    this.token = token.trim();
+    this.apiBaseUrl = environment === 'production' ? 'https://api.pagseguro.com' : 'https://sandbox.api.pagseguro.com';
   }
 
-  async charge(_request: ChargeRequest): Promise<ChargeResponse> {
-    // TODO: implementar chamada à API do PagBank
-    throw new Error('PagBank: implementação pendente');
+  private headers() { return { Authorization: `Bearer ${this.token}`, Accept: 'application/json', 'Content-Type': 'application/json' }; }
+
+  private paymentState(data: any, expectedAmount?: number): 'pending' | 'approved' | 'declined' | 'cancelled' {
+    const charge = data?.charges?.[0];
+    if (!charge || data.charges.length !== 1 || charge.payment_method?.type !== 'PIX' || charge.amount?.currency !== 'BRL' ||
+      !Number.isSafeInteger(charge.amount?.value) || (expectedAmount !== undefined && charge.amount.value !== expectedAmount)) throw new Error('PagBank retornou dados de cobrança incompatíveis. Concilie o pedido antes de continuar.');
+    if (charge.status === 'PAID') {
+      if (charge.amount.summary?.refunded > 0 || (charge.amount.summary?.paid !== undefined && charge.amount.summary.paid !== charge.amount.value)) throw new Error('PagBank retornou pagamento com valores divergentes. Concilie o pedido.');
+      return 'approved';
+    }
+    if (charge.status === 'CANCELED') return 'cancelled';
+    if (charge.status === 'DECLINED') return 'declined';
+    return 'pending';
   }
 
-  async checkStatus(
-    _externalId: string
-  ): Promise<'pending' | 'approved' | 'declined' | 'cancelled' | 'error'> {
-    throw new Error('PagBank: implementação pendente');
+  async charge(request: ChargeRequest): Promise<ChargeResponse> {
+    if (request.method !== 'pix' || request.channel !== 'online') throw new Error('PagBank está habilitado somente para Pix online.');
+    if (!Number.isSafeInteger(request.amount) || request.amount < 1 || request.amount > 999999999) throw new Error('Valor inválido para Pix PagBank.');
+    const document = request.customerDocument?.replace(/\D/g, '') ?? '';
+    if (!request.customerName?.trim() || !request.customerEmail || ![11, 14].includes(document.length)) throw new Error('Pix PagBank exige nome, e-mail e CPF/CNPJ do comprador.');
+    const key = request.idempotencyKey ?? crypto.randomUUID();
+    let response: Response;
+    try {
+      response = await fetch(`${this.apiBaseUrl}/orders`, {
+        method: 'POST', headers: { ...this.headers(), 'x-idempotency-key': key }, redirect: 'error', signal: AbortSignal.timeout(15000), cache: 'no-store',
+        body: JSON.stringify({ reference_id: key, customer: { name: request.customerName.trim(), email: request.customerEmail, tax_id: document },
+          items: [{ reference_id: key, name: request.description.slice(0, 100), quantity: 1, unit_amount: request.amount }],
+          charges: [{ reference_id: key, description: request.description.slice(0, 64), amount: { value: request.amount, currency: 'BRL' },
+            payment_method: { type: 'PIX', pix: { expiration_date: new Date(Date.now() + 30 * 60000).toISOString() } } }],
+        }),
+      });
+    } catch { throw new PagBankUncertainError(); }
+    const data = await response.json().catch(() => null);
+    if (response.status >= 500 || response.status === 408 || response.status === 409) throw new PagBankUncertainError();
+    if (response.status === 401 || response.status === 403) throw new Error(`PagBank recusou a autenticação ou permissão (${response.status}). Confira o token da API de Pedidos e o ambiente selecionado; Sandbox e Produção usam tokens diferentes.`);
+    if (!response.ok) throw new Error(`PagBank recusou o pedido (HTTP ${response.status}). Confira os dados do comprador, a chave Pix ativa na conta e a liberação da API.`);
+    if (!data?.id || typeof data.id !== 'string') throw new PagBankUncertainError();
+    let status;
+    try { status = this.paymentState(data, request.amount); } catch { throw new PagBankUncertainError(data.id); }
+    const charge = data.charges[0];
+    if (status === 'pending' && !charge.qr_code?.text) throw new PagBankUncertainError(data.id);
+    const imageLink = charge.links?.find((link: { rel: string }) => link.rel === 'QRCODE.PNG')?.href;
+    const imageUrl = typeof imageLink === 'string' && imageLink.startsWith(`${this.apiBaseUrl}/qrcode/`) ? imageLink : undefined;
+    return { provider: this.provider, method: 'pix', channel: 'online', externalId: data.id, status, pixCopyPaste: charge.qr_code?.text, pixQrCodeUrl: imageUrl };
+  }
+
+  async checkStatus(externalId: string, expectedAmount?: number): Promise<'pending' | 'approved' | 'declined' | 'cancelled'> {
+    const response = await fetch(`${this.apiBaseUrl}/orders/${encodeURIComponent(externalId)}`, { headers: this.headers(), cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error(`PagBank não confirmou o pedido (HTTP ${response.status}).`);
+    const data = await response.json();
+    if (data.id !== externalId) throw new Error('PagBank retornou outro pedido.');
+    return this.paymentState(data, expectedAmount);
+  }
+
+  /** A live Pix is never locally cancelled; wait for provider-confirmed expiration/cancellation. */
+  async cancelOrder(externalId: string, expectedAmount: number): Promise<'cancelled' | 'approved' | 'pending'> {
+    const state = await this.checkStatus(externalId, expectedAmount);
+    return state === 'declined' ? 'cancelled' : state;
   }
 }
 
@@ -399,7 +456,7 @@ export class ExternalTerminalGateway implements PaymentGateway {
 export function getPaymentGateway(
   provider: PaymentProvider,
   credentials: Record<string, unknown>,
-  publicData?: { pixKey?: string; pixKeyType?: string }
+  publicData?: { pixKey?: string; pixKeyType?: string; environment?: string }
 ): PaymentGateway {
   switch (provider) {
     case 'pix_manual':
@@ -417,7 +474,7 @@ export function getPaymentGateway(
         (credentials.sandbox as boolean) ?? false
       );
     case 'pagbank':
-      return new PagBankGateway(credentials.token as string);
+      return new PagBankGateway(credentials.token as string, publicData?.environment === 'production' ? 'production' : 'sandbox');
     case 'stone_ton':
       return new StoneTonGateway();
     case 'external_terminal':

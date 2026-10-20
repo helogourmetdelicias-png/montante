@@ -1,12 +1,12 @@
 import { PaymentAttemptStatus, Prisma } from '@prisma/client';
 import { decryptCredentials } from '@/lib/encryption';
-import { MercadoPagoGateway } from '@/lib/payment/gateway-adapter';
+import { MercadoPagoGateway, PagBankGateway } from '@/lib/payment/gateway-adapter';
 import { prisma } from '@/lib/prisma';
 import { applyPaymentResult } from '@/lib/sales/payment-result';
 
 type CancellationState = 'cancelled' | 'payment_received' | 'still_pending' | 'cash_refund_required' | 'not_found';
 
-/** Cancels pending Mercado Pago Orders before local cancellation can restore reserved stock. */
+/** Confirms online Orders are no longer payable before local cancellation restores stock. */
 export async function cancelProviderOrdersForSale(tenantId: string, saleId: string): Promise<CancellationState> {
   const sale = await prisma.sale.findFirst({
     where: { id: saleId, tenant_id: tenantId },
@@ -18,7 +18,7 @@ export async function cancelProviderOrdersForSale(tenantId: string, saleId: stri
     where: {
       tenant_id: tenantId,
       sale_id: saleId,
-      provider: 'mercadopago',
+      provider: { in: ['mercadopago', 'pagbank'] },
       status: PaymentAttemptStatus.APPROVED,
       external_order_id: { not: null },
     },
@@ -30,10 +30,10 @@ export async function cancelProviderOrdersForSale(tenantId: string, saleId: stri
     where: {
       tenant_id: tenantId,
       sale_id: saleId,
-      provider: 'mercadopago',
+      provider: { in: ['mercadopago', 'pagbank'] },
       status: { in: [PaymentAttemptStatus.CREATED, PaymentAttemptStatus.PENDING] },
     },
-    include: { gateway_config: { select: { encrypted_credentials: true } } },
+    include: { gateway_config: { select: { encrypted_credentials: true, environment: true } } },
     orderBy: { created_at: 'asc' },
   });
 
@@ -42,15 +42,20 @@ export async function cancelProviderOrdersForSale(tenantId: string, saleId: stri
     if (!encryptedCredentials || !attempt.external_order_id) return 'still_pending';
 
     const credentials = decryptCredentials(encryptedCredentials);
-    const accessToken = credentials.access_token;
+    const accessToken = attempt.provider === 'pagbank' ? credentials.token : credentials.access_token;
     if (typeof accessToken !== 'string' || !accessToken) return 'still_pending';
 
-    const gateway = new MercadoPagoGateway(accessToken);
-    const providerState = await gateway.cancelOrder(attempt.external_order_id);
+    const gateway = attempt.provider === 'pagbank'
+      ? new PagBankGateway(accessToken, attempt.gateway_config?.environment === 'production' ? 'production' : 'sandbox')
+      : new MercadoPagoGateway(accessToken);
+    const providerState = gateway instanceof PagBankGateway
+      ? await gateway.cancelOrder(attempt.external_order_id, Number(attempt.amount.mul(100).toString()))
+      : await gateway.cancelOrder(attempt.external_order_id);
     if (providerState === 'pending') return 'still_pending';
     if (providerState === 'approved') {
       await prisma.$transaction((tx) => applyPaymentResult(tx, {
         tenantId,
+        provider: attempt.provider,
         saleId,
         attemptId: attempt.id,
         method: attempt.method.toLowerCase(),
@@ -93,11 +98,13 @@ export async function releaseExpiredSaleWithProviderCheck(tenantId: string, sale
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const result = await prisma.$transaction(async (tx) => {
+        const pendingPagBank = await tx.paymentAttempt.findFirst({ where: { tenant_id: tenantId, sale_id: saleId, provider: 'pagbank', status: { in: ['CREATED', 'PENDING', 'APPROVED'] } }, select: { id: true } });
+        if (pendingPagBank) return { state: 'still_pending' as const, released: false };
         const cancelledAttempts = await tx.paymentAttempt.updateMany({
           where: {
             tenant_id: tenantId,
             sale_id: saleId,
-            provider: 'mercadopago',
+            provider: { in: ['mercadopago', 'pagbank'] },
             status: { in: [PaymentAttemptStatus.CREATED, PaymentAttemptStatus.PENDING] },
             external_order_id: { not: null },
           },

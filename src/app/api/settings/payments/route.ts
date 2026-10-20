@@ -85,9 +85,12 @@ export async function POST(request: Request) {
 
   const currentConfig = await prisma.paymentGatewayConfig.findUnique({
     where: { tenant_id_provider: { tenant_id: access.tenantId, provider: input.provider } },
-    select: { encrypted_credentials: true },
+    select: { encrypted_credentials: true, environment: true, id: true },
   });
   let effectiveCredentials = input.credentials;
+  if (input.provider === 'pagbank' && currentConfig && currentConfig.environment !== input.environment && await prisma.paymentAttempt.count({ where: { tenant_id: access.tenantId, gateway_config_id: currentConfig.id, status: { in: ['CREATED', 'PENDING'] } } })) {
+    return NextResponse.json({ error: 'Concilie as cobranças PagBank pendentes antes de trocar o ambiente.' }, { status: 409 });
+  }
   if (!effectiveCredentials && currentConfig?.encrypted_credentials) {
     try {
       effectiveCredentials = decryptCredentials(currentConfig.encrypted_credentials) as Record<string, string>;
@@ -107,6 +110,9 @@ export async function POST(request: Request) {
   }
   if (input.isActive && input.provider === 'pagarme' && !effectiveCredentials?.api_key?.trim()) {
     return NextResponse.json({ error: 'Informe a chave secreta da API Pagar.me.' }, { status: 400 });
+  }
+  if (input.isActive && input.provider === 'pagbank' && !effectiveCredentials?.token?.trim()) {
+    return NextResponse.json({ error: 'Informe o token da API de Pedidos PagBank correspondente ao ambiente selecionado.' }, { status: 400 });
   }
   if (input.isActive && input.provider === 'pix_manual' && !effectiveCredentials?.pix_key?.trim()) {
     return NextResponse.json({ error: 'Informe a chave Pix da loja.' }, { status: 400 });

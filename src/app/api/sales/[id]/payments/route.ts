@@ -1,8 +1,9 @@
 import { auth } from '@/auth';
 import { decryptCredentials } from '@/lib/encryption';
 import { isCapabilityAvailable } from '@/lib/payment/provider-catalog';
-import { getPaymentGateway, type PaymentProvider } from '@/lib/payment/gateway-adapter';
+import { getPaymentGateway, PagBankUncertainError, type PaymentProvider } from '@/lib/payment/gateway-adapter';
 import { prisma } from '@/lib/prisma';
+import { runSerializableTransaction } from '@/lib/database/transactions';
 import { applyPaymentResult } from '@/lib/sales/payment-result';
 import { createPaymentAttemptSchema } from '@/lib/validations/payment-attempt';
 import { PaymentAttemptStatus, Prisma } from '@prisma/client';
@@ -120,12 +121,12 @@ export async function POST(request: Request, context: { params: { id: string } }
   const pixKey = input.provider === 'pix_manual' ? credentials.pix_key : undefined;
   const gateway = getPaymentGateway(input.provider as PaymentProvider, credentials, {
     pixKey: typeof pixKey === 'string' ? pixKey : undefined,
+    environment: configuration?.environment,
   });
 
   let attempt;
   try {
-    attempt = await prisma.paymentAttempt.create({
-      data: {
+    const createData: Prisma.PaymentAttemptUncheckedCreateInput = {
         tenant_id: tenantId,
         sale_id: sale.id,
         gateway_config_id: configuration?.id,
@@ -136,9 +137,15 @@ export async function POST(request: Request, context: { params: { id: string } }
         status: 'CREATED',
         amount: remainingAmount,
         idempotency_key: input.idempotencyKey,
-      },
-    });
+      };
+    attempt = input.provider === 'pagbank' ? await runSerializableTransaction(async tx => {
+      const available = await tx.sale.findFirst({ where: { id: sale.id, tenant_id: tenantId, status: 'pending', OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }] }, select: { id: true } });
+      const pending = await tx.paymentAttempt.findFirst({ where: { tenant_id: tenantId, sale_id: sale.id, status: { in: ['CREATED', 'PENDING', 'APPROVED'] } }, select: { id: true } });
+      if (!available || pending) throw new Error('PAGBANK_ATTEMPT_CONFLICT');
+      return tx.paymentAttempt.create({ data: createData });
+    }) : await prisma.paymentAttempt.create({ data: createData });
   } catch (error) {
+    if (error instanceof Error && error.message === 'PAGBANK_ATTEMPT_CONFLICT') return NextResponse.json({ error: 'A venda já tem uma cobrança em andamento ou não está mais disponível.' }, { status: 409 });
     if ((error as { code?: string }).code === 'P2002') {
       const replay = await prisma.paymentAttempt.findFirst({ where: { tenant_id: tenantId, provider: input.provider, idempotency_key: input.idempotencyKey } });
       if (replay?.sale_id === sale.id && replay.method.toLowerCase() === input.method && replay.channel.toLowerCase() === input.channel) {
@@ -150,6 +157,7 @@ export async function POST(request: Request, context: { params: { id: string } }
     return NextResponse.json({ error: 'Não foi possível registrar a tentativa de pagamento.' }, { status: 500 });
   }
 
+  let pagBankOrderId: string | undefined;
   try {
     const result = await gateway.charge({
       amount: Number(remainingAmount.mul(100).toDecimalPlaces(0).toString()),
@@ -163,13 +171,16 @@ export async function POST(request: Request, context: { params: { id: string } }
       customerPhone: input.customerPhone,
       customerAddress: input.customerAddress,
     });
-    const update = await prisma.$transaction((tx) => applyPaymentResult(tx, {
+    if (input.provider === 'pagbank') pagBankOrderId = result.externalId;
+    const applyResult = (tx: Prisma.TransactionClient) => applyPaymentResult(tx, {
       tenantId,
+      provider: input.provider,
       saleId: sale.id,
       attemptId: attempt.id,
       method: input.method,
       result,
-    }));
+    });
+    const update = input.provider === 'pagbank' ? await runSerializableTransaction(applyResult) : await prisma.$transaction(applyResult);
     return NextResponse.json({ attempt: serializeAttempt(update.attempt), saleCompleted: update.saleCompleted, payment: {
       pixQrCode: result.pixQrCode,
       pixQrCodeUrl: result.pixQrCodeUrl,
@@ -177,8 +188,14 @@ export async function POST(request: Request, context: { params: { id: string } }
       paymentUrl: result.paymentUrl,
     } }, { status: 201 });
   } catch (error) {
+    if (input.provider === 'pagbank' && (error instanceof PagBankUncertainError || pagBankOrderId)) {
+      const uncertainError = error instanceof PagBankUncertainError ? error : new PagBankUncertainError(pagBankOrderId);
+      await prisma.paymentAttempt.updateMany({ where: { id: attempt.id, tenant_id: tenantId, status: { in: ['CREATED', 'PENDING'] } }, data: { status: 'PENDING', external_order_id: uncertainError.externalId ?? null, failure_code: 'RECONCILIATION_REQUIRED', failure_message: uncertainError.message } });
+      const uncertain = await prisma.paymentAttempt.findFirstOrThrow({ where: { id: attempt.id, tenant_id: tenantId } });
+      return NextResponse.json({ error: uncertainError.message, attempt: serializeAttempt(uncertain) }, { status: 502 });
+    }
     const providerMessage = error instanceof Error ? error.message.slice(0, 300) : '';
-    const publicMessage = input.provider === 'pagarme' && providerMessage
+    const publicMessage = ['pagarme', 'pagbank'].includes(input.provider) && providerMessage
       ? providerMessage
       : 'O gateway não conseguiu iniciar a cobrança.';
     const failedAttempt = await prisma.paymentAttempt.update({

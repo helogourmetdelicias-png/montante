@@ -41,7 +41,7 @@ const credentialFields: Record<string, { name: string; label: string; hint: stri
   mercadopago: [{ name: 'access_token', label: 'Access Token', hint: 'Use o token de teste no ambiente sandbox.' }],
   pagarme: [{ name: 'api_key', label: 'Chave secreta da API (sk_...)', hint: 'Use uma chave de teste no Sandbox. A chave fica protegida e nunca é exibida novamente.' }],
   asaas: [{ name: 'api_key', label: 'Chave de API', hint: 'A integração ainda está em preparação.' }],
-  pagbank: [{ name: 'token', label: 'Token', hint: 'A integração ainda está em preparação.' }],
+  pagbank: [{ name: 'token', label: 'Token da API de Pedidos PagBank', hint: 'Cole somente o token, sem “Bearer”. Use o token correspondente a Sandbox ou Produção. A conta precisa ter uma chave Pix ativa.' }],
   stone_ton: [
     { name: 'client_id', label: 'Client ID', hint: 'Informe somente quando receber as credenciais oficiais da integração.' },
     { name: 'client_secret', label: 'Client Secret', hint: 'A integração ainda não inicia cobranças.' },

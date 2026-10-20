@@ -9,6 +9,7 @@ type PaymentResult = {
 
 type ApplyPaymentResultInput = {
   tenantId: string;
+  provider?: string;
   saleId: string;
   attemptId: string;
   method: string;
@@ -26,6 +27,10 @@ const ATTEMPT_STATUS_BY_RESULT: Record<PaymentResult['status'], PaymentAttemptSt
 
 /** Applies a provider result and completes the sale only after approved payments cover its full total. */
 export async function applyPaymentResult(tx: Transaction, input: ApplyPaymentResultInput) {
+  if (input.provider === 'pagbank') {
+    const approved = await tx.paymentAttempt.findFirst({ where: { id: input.attemptId, tenant_id: input.tenantId, sale_id: input.saleId, provider: 'pagbank', status: 'APPROVED' } });
+    if (approved) return { attempt: approved, saleCompleted: Boolean(await tx.sale.findFirst({ where: { id: input.saleId, tenant_id: input.tenantId, status: 'completed' }, select: { id: true } })) };
+  }
   const now = input.now ?? new Date();
   const approved = input.result.status === 'approved';
   const attempt = await tx.paymentAttempt.update({
