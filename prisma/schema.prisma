@@ -66,6 +66,7 @@ model Tenant {
 
   users                   User[]
   products                Product[]
+  customers               Customer[]
   sales                   Sale[]
   payment_configs         PaymentGatewayConfig[]
   payment_attempts        PaymentAttempt[]
@@ -186,6 +187,31 @@ model PaymentGatewayConfig {
   @@index([tenant_id])
 }
 
+model Customer {
+  id           String   @id @default(cuid())
+  tenant_id    String
+  name         String
+  document     String?
+  email        String?
+  phone        String?
+  zipCode      String?
+  street       String?
+  number       String?
+  neighborhood String?
+  city         String?
+  state        String?  @db.Char(2)
+  isActive     Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sales  Sale[]
+
+  @@unique([id, tenant_id])
+  @@unique([tenant_id, document])
+  @@index([tenant_id, name])
+}
+
 model Sale {
   id                       String    @id @default(cuid())
   tenant_id                String
@@ -200,18 +226,21 @@ model Sale {
   request_hash             String?   @db.Char(64)
   expires_at               DateTime?
   cash_register_session_id String?
+  customer_id              String?
   notes                    String?   @db.Text
   sold_at                  DateTime  @default(now())
   created_at               DateTime  @default(now())
   updated_at               DateTime  @updatedAt
 
   tenant                Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  customer              Customer?            @relation(fields: [customer_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
   items                 SaleItem[]
   payment_attempts      PaymentAttempt[]
   cash_register_session CashRegisterSession? @relation(fields: [cash_register_session_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
 
   @@unique([tenant_id, sale_number])
   @@unique([id, tenant_id])
+  @@index([customer_id, tenant_id])
   @@unique([tenant_id, idempotency_key])
   @@index([tenant_id])
   @@index([tenant_id, sold_at])

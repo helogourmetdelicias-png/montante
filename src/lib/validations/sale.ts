@@ -8,6 +8,7 @@ const saleQuantity = z.number()
 
 export const createSaleSchema = z.object({
   idempotencyKey: z.string().uuid(),
+  customerId: z.string().cuid().optional(),
   discountAmount: z.number().finite().min(0).max(99_999_999.99)
     .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, 'Use no máximo duas casas decimais.')
     .default(0),

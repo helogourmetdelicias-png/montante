@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { BarChart3, CreditCard, Package, Settings, ShoppingBag, Wallet } from 'lucide-react';
+import { BarChart3, CreditCard, Package, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
 
-type StorePage = 'pdv' | 'sales' | 'products' | 'cash' | 'reports' | 'settings' | 'payments';
+type StorePage = 'pdv' | 'sales' | 'customers' | 'products' | 'cash' | 'reports' | 'settings' | 'payments';
 
 type StoreNavigationProps = {
   activePage: StorePage;
@@ -13,6 +13,7 @@ const navigationItems: { href: string; label: string; page: StorePage; icon: typ
   { href: '/vendas', label: 'Vendas', page: 'sales', icon: ShoppingBag },
   { href: '/caixa', label: 'Caixa', page: 'cash', icon: Wallet },
   { href: '/produtos', label: 'Produtos', page: 'products', icon: Package, managementOnly: true },
+  { href: '/clientes', label: 'Clientes', page: 'customers', icon: Users, managementOnly: true },
   { href: '/relatorios', label: 'Relatórios', page: 'reports', icon: BarChart3, managementOnly: true },
   { href: '/configuracoes/pagamentos', label: 'Configurações', page: 'settings', icon: Settings, managementOnly: true },
 ];

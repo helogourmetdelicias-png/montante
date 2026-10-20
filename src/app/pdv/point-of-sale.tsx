@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import StoreNavigation from '@/components/store-navigation';
 import ReceiptPreview from './receipt-preview';
+import CustomerPicker, { type SaleCustomer } from './customer-picker';
 import { calculateCashChangeCents } from '@/lib/sales/cash-payment';
 
 type Product = {
@@ -52,6 +53,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   const [selectedOption, setSelectedOption] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<SaleCustomer | null>(null);
   const [customerDocument, setCustomerDocument] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerZipCode, setCustomerZipCode] = useState('');
@@ -105,6 +107,15 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   const activeCashContribution = selectedPayment?.provider === 'split' ? splitCashCents : Math.round(amountDue * 100);
   const cashChangeCents = calculateCashChangeCents(activeCashContribution, cashReceivedCents);
   const splitPixBalanceCents = Math.round(amountDue * 100) - splitCashCents;
+
+  function selectCustomer(customer: SaleCustomer | null) {
+    setSelectedCustomer(customer);
+    setCustomerName(customer?.name ?? ''); setCustomerEmail(customer?.email ?? '');
+    setCustomerDocument(customer?.document ?? ''); setCustomerPhone(customer?.phone ?? '');
+    setCustomerZipCode(customer?.zipCode ?? ''); setCustomerStreet(customer?.street ?? '');
+    setCustomerNumber(customer?.number ?? ''); setCustomerNeighborhood(customer?.neighborhood ?? '');
+    setCustomerCity(customer?.city ?? ''); setCustomerState(customer?.state ?? '');
+  }
 
   useEffect(() => {
     const update = () => setFullscreen(Boolean(document.fullscreenElement));
@@ -285,6 +296,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
           body: JSON.stringify({
             idempotencyKey: crypto.randomUUID(),
             discountAmount: Number(discountValue.toFixed(2)),
+            ...(selectedCustomer ? { customerId: selectedCustomer.id } : {}),
             items: cart.map(({ product, quantity }) => ({ productId: product.id, quantity })),
           }),
         });
@@ -473,6 +485,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
     setCashRefundConfirmation('');
     setSplitCashAmount('');
     setCustomerEmail('');
+    selectCustomer(null);
     setMessage('');
     searchRef.current?.focus();
   }
@@ -543,6 +556,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
           </div>
 
           {!awaitingPayment && !cashDue && !completed && <div className="px-5 pb-5">
+            <CustomerPicker selected={selectedCustomer} disabled={Boolean(saleId) || busy} onSelect={selectCustomer} />
             <label className="mb-2 block text-sm font-medium" htmlFor="payment-method">Forma de pagamento</label>
             {paymentOptions.length ? <div className="relative"><select id="payment-method" value={selectedOption} onChange={(event) => setSelectedOption(event.target.value)} disabled={!paymentEditable} className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-9 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-50">{paymentOptions.map((option) => { const value = option.provider + option.method + option.terminalId; const methodLabel = option.provider === 'split' ? 'Dividido' : option.method === 'pix' ? 'Pix' : option.method === 'cash' ? 'Dinheiro' : option.method === 'credit_card' ? 'Crédito' : 'Débito'; return <option key={value} value={value}>{option.label} · {methodLabel}</option>; })}</select><ChevronDown className="pointer-events-none absolute right-3 top-3 text-slate-400" size={18} /></div> : <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Nenhuma forma de pagamento está ativa. Peça ao responsável para configurar uma opção.</p>}
             {needsCustomerEmail && <label className="mt-3 block text-sm font-medium" htmlFor="customer-email">E-mail do comprador<Input id="customer-email" type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder={selectedPayment.environment === 'sandbox' ? 'comprador@testuser.com' : 'comprador@exemplo.com'} disabled={!paymentEditable} className="mt-2 h-10" required />{selectedPayment.environment === 'sandbox' && <span className="mt-1 block text-xs font-normal text-slate-500">No Sandbox, use um e-mail de teste com final @testuser.com.</span>}</label>}

@@ -58,8 +58,8 @@ Critérios: não editar estoque sem rastreio; concorrência, cancelamento e repe
 
 ## 4. Terceira entrega — clientes e continuidade
 
-- [ ] Cadastro simples de cliente PF/PJ, contato e endereço opcional conforme necessidade da operação.
-- [ ] Associar cliente à venda sem tornar cadastro obrigatório em venda comum; respeitar exigências do meio de pagamento.
+- [~] Tela `/clientes` e APIs por loja: criar/editar/excluir (desativação), reativar, buscar por nome/documento/contato e paginar. Nome obrigatório; CPF/CNPJ, contato e endereço opcionais. Gestão restrita a owner/admin; operadores podem pesquisar para selecionar no PDV. API validada por integração autenticada, incluindo duplicidade, perfis e isolamento. Conferência visual da tela pendente.
+- [~] Cliente opcional no PDV, preenchimento dos dados de cobrança ao selecionar e vínculo persistido à venda, visível no detalhe/comprovante. Cliente de outra loja/inativo é rejeitado; requisitos do gateway continuam obrigatórios. Vínculo e idempotência validados por integração; preenchimento visual no navegador pendente. Nome do cliente reflete o cadastro atual, sem snapshot histórico.
 - [ ] Histórico de compras do cliente com acesso restrito.
 - [ ] Suspender e recuperar carrinho, com identificação e escolha explícita da política de reserva. Uma venda pendente não equivale a um carrinho suspenso.
 - [ ] Orçamento com validade e conversão em venda, recalculando preços e disponibilidade antes da cobrança.
@@ -104,6 +104,9 @@ Critérios: não editar estoque sem rastreio; concorrência, cancelamento e repe
 4. Atualizar este arquivo com as lacunas restantes e `checklist.md` com publicação/homologação.
 
 ### Registro desta revisão
+
+- [~] Clientes e produtos: migration `20261019000200_customers` aplicada e status do banco atualizado. Adicionado botão explícito Editar em Produtos ao lado de Excluir; edição ao clicar no nome continua disponível. Exclusões preservam histórico por desativação. Nenhum cliente fictício padrão foi criado e a configuração Stone segue adiada.
+- [x] Qualidade de Clientes: Prisma validate/generate, migration status, TypeScript, build e `npm test` (26/26) passaram. `tests/customers.integration.mjs` exercitou CRUD e seleção no servidor com lojas QA temporárias, removidas ao finalizar; nenhuma cobrança externa foi iniciada. O teste também verifica edição/exclusão de produto associado a venda preservando o item histórico.
 
 - [~] Ajuste de impressão/tela cheia: comprovante passa a abrir em janela interna do PDV, sem trocar de aba. Ao voltar pelo botão, restaura a tela cheia se ela estava ativa ao abrir. O diálogo de impressão pode encerrar a tela cheia conforme o navegador; restauração automática sem clique não é garantida. Escape continua permitindo sair sem forçar reentrada. Testes de impressão física e interação no navegador pendentes.
 - [x] Verificações do ajuste: 23 testes e TypeScript passaram; `next build` passou com Prisma Client existente (o comando completo encontrou DLL em uso pelo servidor local). Integração HTTP conferiu comprovante incorporado e isolamento com vendas concluídas/canceladas; pendente foi ignorada porque não havia registro nesse estado, sem criar ou alterar vendas para o teste.

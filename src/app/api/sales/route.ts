@@ -18,8 +18,8 @@ class SaleInputError extends Error {
   }
 }
 
-function getRequestHash(items: Array<{ productId: string; quantityMilli: number }>, discountCents: number) {
-  return createHash('sha256').update(JSON.stringify({ items, discountCents })).digest('hex');
+function getRequestHash(items: Array<{ productId: string; quantityMilli: number }>, discountCents: number, customerId?: string) {
+  return createHash('sha256').update(JSON.stringify({ items, discountCents, ...(customerId ? { customerId } : {}) })).digest('hex');
 }
 
 function serializeSale(sale: {
@@ -30,6 +30,7 @@ function serializeSale(sale: {
   amount_received: Prisma.Decimal | null;
   change_amount: Prisma.Decimal | null;
   discount_amount: Prisma.Decimal;
+  customer_id: string | null;
   expires_at: Date | null;
   created_at: Date;
   items: Array<{ product_id: string; quantity: Prisma.Decimal; unit_price: Prisma.Decimal; total_price: Prisma.Decimal }>;
@@ -40,6 +41,7 @@ function serializeSale(sale: {
     status: sale.status,
     totalAmount: sale.total_amount.toFixed(2),
     discountAmount: sale.discount_amount.toFixed(2),
+    customerId: sale.customer_id,
     amountReceived: sale.amount_received?.toFixed(2) ?? null,
     changeAmount: sale.change_amount?.toFixed(2) ?? null,
     expiresAt: sale.expires_at,
@@ -108,7 +110,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'A quantidade total por produto excede o limite permitido.' }, { status: 400 });
   }
   const discountCents = Math.round(input.discountAmount * 100);
-  const requestHash = getRequestHash(items, discountCents);
+  const requestHash = getRequestHash(items, discountCents, input.customerId);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + RESERVATION_MINUTES * 60 * 1000);
 
@@ -126,6 +128,10 @@ export async function POST(request: Request) {
       }
 
       // Associate every new sale with the operator's active drawer and block checkout without one.
+      if (input.customerId) {
+        const customer = await tx.customer.findFirst({ where: { id: input.customerId, tenant_id: tenantId, isActive: true }, select: { id: true } });
+        if (!customer) throw new SaleInputError('Cliente não encontrado ou inativo nesta loja.', 404);
+      }
       const cashRegister = await tx.cashRegisterSession.findFirst({
         where: { tenant_id: tenantId, user_id: userId, status: 'OPEN' },
         select: { id: true },
@@ -188,6 +194,7 @@ export async function POST(request: Request) {
           request_hash: requestHash,
           expires_at: expiresAt,
           cash_register_session_id: cashRegister.id,
+          customer_id: input.customerId,
           items: { create: saleItems },
         },
         include: { items: true },
