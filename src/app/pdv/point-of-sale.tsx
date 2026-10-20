@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Barcode, Check, ChevronDown, CircleAlert, CreditCard, ImagePlus, LoaderCircle, Minus, PackageSearch, Plus, Search, ShoppingBag, Trash2, X } from 'lucide-react';
+import { Barcode, Check, ChevronDown, CircleAlert, CreditCard, LoaderCircle, Minus, PackageSearch, Plus, Search, ShoppingBag, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MoneyInput } from '@/components/ui/money-input';
@@ -75,9 +75,6 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   const [customerNeighborhood, setCustomerNeighborhood] = useState('');
   const [customerCity, setCustomerCity] = useState('');
   const [customerState, setCustomerState] = useState('');
-  const [logoUrl, setLogoUrl] = useState(initialLogoUrl);
-  const [logoEditorOpen, setLogoEditorOpen] = useState(false);
-  const [logoDraft, setLogoDraft] = useState(initialLogoUrl);
   const [busy, setBusy] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [message, setMessage] = useState('');
@@ -148,7 +145,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
   }
 
   function openSaleDialog(mode: 'quick' | 'advanced') {
-    if (busy || saleId || logoEditorOpen || cashRefundConfirmation) return;
+    if (busy || saleId || cashRefundConfirmation) return;
     if (mode !== saleMode && (cart.length > 0 || Number(quickAmount) > 0)) {
       setMessage('Limpe a venda atual antes de trocar entre rápida e avançada.');
       return;
@@ -173,7 +170,7 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [busy, saleId, saleMode, quickAmount, cart.length, logoEditorOpen, cashRefundConfirmation]);
+  }, [busy, saleId, saleMode, quickAmount, cart.length, cashRefundConfirmation]);
 
   // Debounced search keeps the barcode field responsive without sending a request per keystroke.
   useEffect(() => {
@@ -284,25 +281,6 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
     } else if (products.length === 1) {
       addProduct(products[0]);
       setQuery('');
-    }
-  }
-
-  async function saveLogo(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    try {
-      const response = await fetch('/api/settings/brand', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logoUrl: logoDraft }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(errorMessage(result, 'Não foi possível salvar a logo.'));
-      setLogoUrl(result.logoUrl ?? '');
-      setLogoEditorOpen(false);
-      setMessage('Logo da loja atualizada.');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Não foi possível salvar a logo.');
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -568,10 +546,9 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
             <StoreNavigation activePage="pdv" canManageStore={canManageBrand} />
             <Button type="button" variant="outline" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen}>{fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</Button>
             <div className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500" />Sessão ativa</div>
-            <div className="relative flex h-[60px] w-[136px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 px-3 sm:h-[76px] sm:w-[190px]">
-              {logoUrl ? <img src={logoUrl} alt={`Logo de ${storeName}`} className="max-h-full max-w-full object-contain" /> : <div className="text-center"><ImagePlus className="mx-auto mb-1 text-slate-400" size={22} /><span className="text-xs text-slate-500">Logo da loja</span></div>}
-              {canManageBrand && <button type="button" onClick={() => { setLogoDraft(logoUrl); setLogoEditorOpen(true); }} className="absolute inset-0 rounded-xl bg-slate-950/0 text-xs font-medium text-white opacity-0 transition hover:bg-slate-950/55 hover:opacity-100 focus:opacity-100" aria-label="Alterar logo da loja">Alterar logo</button>}
-            </div>
+            {initialLogoUrl && <div className="relative flex h-[60px] w-[136px] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 px-3 sm:h-[76px] sm:w-[190px]">
+              <img src={initialLogoUrl} alt={`Logo de ${storeName}`} className="max-h-full max-w-full object-contain" />
+            </div>}
           </div>
         </div>
       </header>
@@ -706,7 +683,6 @@ export default function PointOfSale({ storeName, initialLogoUrl, canManageBrand,
 
       {cashRefundConfirmation && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><section role="dialog" aria-modal="true" aria-labelledby="cash-refund-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><h2 id="cash-refund-title" className="text-lg font-semibold">Devolver o dinheiro antes de cancelar?</h2><p className="mt-3 text-sm leading-6 text-slate-600">Esta venda recebeu <strong>{money(Number(cashRefundConfirmation))}</strong> em dinheiro e o QR Pix já foi cancelado. Devolva esse valor ao cliente; o estoque só será liberado depois da confirmação.</p><div className="mt-6 grid gap-2"><Button type="button" onClick={() => void cancelSale(true)} disabled={busy} className="h-11 bg-red-600 hover:bg-red-700">{busy && <LoaderCircle className="mr-2 animate-spin" size={16} />}Já devolvi o dinheiro. Cancelar venda</Button><Button type="button" variant="outline" onClick={() => { setCashRefundConfirmation(''); setPaymentStatus('split_pix_due'); setAttemptId(''); setPayment(null); setPaymentAmount(''); }}>Manter venda aberta</Button></div></section></div>}
 
-      {logoEditorOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoEditorOpen(false); }}><section role="dialog" aria-modal="true" aria-labelledby="logo-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-start justify-between"><div><h2 id="logo-title" className="text-lg font-semibold">Logo da loja</h2><p className="mt-1 text-sm text-slate-500">Use uma imagem pública quadrada ou horizontal.</p></div><button type="button" aria-label="Fechar" onClick={() => setLogoEditorOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={19} /></button></div><form onSubmit={saveLogo}><label htmlFor="logo-url" className="mb-2 block text-sm font-medium">Endereço da imagem</label><Input id="logo-url" type="url" value={logoDraft} onChange={(event) => setLogoDraft(event.target.value)} placeholder="https://minhaloja.com.br/logo.png" className="h-11" /><p className="mt-2 text-xs text-slate-500">A imagem precisa estar hospedada em um endereço acessível pela internet.</p>{logoDraft && <div className="mt-4 flex h-28 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-3"><img src={logoDraft} alt="Prévia da logo" className="max-h-full max-w-full object-contain" /></div>}<div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => { setLogoDraft(''); setLogoUrl(''); setLogoEditorOpen(false); void fetch('/api/settings/brand', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logoUrl: '' }) }); }}>Remover logo</Button><Button type="submit" disabled={busy} className="bg-orange-600 hover:bg-orange-700">{busy && <LoaderCircle className="mr-2 animate-spin" size={16} />}Salvar</Button></div></form></section></div>}
     </main>
   );
 }
