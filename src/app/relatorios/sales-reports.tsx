@@ -1,6 +1,9 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import WhatsappShare from '@/components/whatsapp-share';
+import { reportShareText } from '@/lib/reports/share';
 import { BarChart3, CircleAlert, LoaderCircle, Search } from 'lucide-react';
 import StoreNavigation from '@/components/store-navigation';
 import { Button } from '@/components/ui/button';
@@ -8,6 +11,8 @@ import { Input } from '@/components/ui/input';
 
 type ProductRank = { productId: string; name: string; sku: string | null; unit: string; quantity: string; revenue: string };
 type Report = {
+  storeName: string;
+  topCustomers: Array<{ customerId: string; name: string; isActive: boolean; revenue: string; saleCount: number }>;
   period: { startDate: string; endDate: string };
   summary: { revenue: string; saleCount: number; averageTicket: string };
   paymentBreakdown: Array<{ method: string; channel: string; amount: string }>;
@@ -29,20 +34,23 @@ export default function SalesReports() {
   const [report, setReport] = useState<Report | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const requestId = useRef(0);
 
   const loadReport = useCallback(async () => {
+    const currentRequest = ++requestId.current;
     setBusy(true);
+    setReport(null);
     setMessage('');
     try {
       const query = new URLSearchParams({ startDate, endDate });
       const response = await fetch(`/api/reports/sales?${query}`, { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Não foi possível gerar o relatório.');
-      setReport(data);
+      if (currentRequest === requestId.current) setReport(data);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Falha ao gerar o relatório.');
+      if (currentRequest === requestId.current) setMessage(error instanceof Error ? error.message : 'Falha ao gerar o relatório.');
     } finally {
-      setBusy(false);
+      if (currentRequest === requestId.current) setBusy(false);
     }
   }, [endDate, startDate]);
 
@@ -72,10 +80,12 @@ export default function SalesReports() {
         <form onSubmit={submitFilters} className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><label className="text-sm font-medium">De<Input type="date" required value={startDate} max={endDate} onChange={(event) => setStartDate(event.target.value)} className="mt-1 h-10" /></label><label className="text-sm font-medium">Até<Input type="date" required value={endDate} min={startDate} onChange={(event) => setEndDate(event.target.value)} className="mt-1 h-10" /></label><Button type="submit" disabled={busy} className="h-10 bg-orange-600 hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={16} /> : <Search className="mr-2" size={16} />}Aplicar período</Button></form>
         {message && <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><CircleAlert size={18} />{message}</div>}
         {report && <>
+          <WhatsappShare text={reportShareText(report)} disabled={busy} />
           <p className="text-sm text-slate-500">Período: {new Date(`${report.period.startDate}T00:00:00`).toLocaleDateString('pt-BR')} a {new Date(`${report.period.endDate}T00:00:00`).toLocaleDateString('pt-BR')}</p>
           <section className="grid gap-4 sm:grid-cols-3">{[['Faturamento', money(report.summary.revenue)], ['Vendas concluídas', report.summary.saleCount.toLocaleString('pt-BR')], ['Ticket médio', money(report.summary.averageTicket)]].map(([label, value]) => <article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p></article>)}</section>
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="flex items-center gap-2 font-semibold"><BarChart3 className="text-orange-600" size={19} />Faturamento por forma de pagamento</h2>{report.paymentBreakdown.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{report.paymentBreakdown.map((payment) => <article key={`${payment.method}-${payment.channel}`} className="rounded-xl bg-slate-50 p-4"><p className="text-sm text-slate-500">{paymentName(payment.method, payment.channel)}</p><p className="mt-1 text-lg font-semibold tabular-nums">{money(payment.amount)}</p></article>)}</div> : <p className="mt-3 text-sm text-slate-500">Sem pagamentos aprovados no período.</p>}</section>
           <div className="grid gap-5 xl:grid-cols-2">{rankings('Mais vendidos por quantidade', report.topProductsByQuantity)}{rankings('Maior faturamento por produto', report.topProductsByRevenue)}</div>
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b p-5"><h2 className="font-semibold">Melhores clientes</h2><p className="mt-1 text-sm text-slate-500">Ordenados pelo valor total das vendas concluídas no período, após descontos. Vendas sem cliente não entram neste ranking.</p></div>{report.topCustomers.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-slate-50"><tr><th className="p-4">Cliente</th><th className="p-4 text-right">Compras</th><th className="p-4 text-right">Total comprado</th></tr></thead><tbody>{report.topCustomers.map((customer, index) => <tr key={customer.customerId} className="border-t"><td className="p-4"><Link href={`/clientes/${customer.customerId}?${new URLSearchParams(report.period)}`} className="font-medium text-orange-700 underline">{index + 1}. {customer.name}</Link>{!customer.isActive && <span className="ml-2 text-xs text-slate-500">Inativo</span>}</td><td className="p-4 text-right">{customer.saleCount}</td><td className="whitespace-nowrap p-4 text-right">{money(customer.revenue)}</td></tr>)}</tbody></table></div> : <p className="p-5 text-sm text-slate-500">Sem compras concluídas vinculadas a clientes neste período.</p>}</section>
         </>}
       </div>
     </main>

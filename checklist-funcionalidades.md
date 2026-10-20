@@ -60,7 +60,9 @@ Critérios: não editar estoque sem rastreio; concorrência, cancelamento e repe
 
 - [~] Tela `/clientes` e APIs por loja: criar/editar/excluir (desativação), reativar, buscar por nome/documento/contato e paginar. Nome obrigatório; CPF/CNPJ, contato e endereço opcionais. Gestão restrita a owner/admin; operadores podem pesquisar para selecionar no PDV. API validada por integração autenticada, incluindo duplicidade, perfis e isolamento. Conferência visual da tela pendente.
 - [~] Cliente opcional no PDV, preenchimento dos dados de cobrança ao selecionar e vínculo persistido à venda, visível no detalhe/comprovante. Cliente de outra loja/inativo é rejeitado; requisitos do gateway continuam obrigatórios. Vínculo e idempotência validados por integração; preenchimento visual no navegador pendente. Nome do cliente reflete o cadastro atual, sem snapshot histórico.
-- [ ] Histórico de compras do cliente com acesso restrito.
+- [~] Histórico `/clientes/[id]`, acessível por Clientes → Histórico e pelo ranking. Período opcional, paginação, totais/ticket médio e última compra concluída; pendentes/canceladas aparecem identificadas e não entram nos totais. Acesso restrito a owner/admin da loja. API validada em integração com filtros, paginação e isolamento; conferência visual pendente.
+- [~] WhatsApp: prévia do resumo dos relatórios (totais e três melhores clientes) e resumo/histórico da página atual do cliente (até 25 vendas); abre mensagem pronta para escolha do destinatário e envio manual. Sem links públicos para dados protegidos nem envio automático. Geração/codificação das mensagens testadas; confirmar abertura visual no WhatsApp, sem envio de teste realizado.
+- [~] Melhores clientes nos relatórios: até 20 clientes ordenados pelo valor líquido das vendas concluídas no período; exibe quantidade/total e abre histórico no mesmo intervalo. Vendas sem cliente não participam; clientes inativos mantêm suas compras históricas. Ordenação/totais e limites de datas em São Paulo passaram em integração; conferência visual pendente.
 - [ ] Suspender e recuperar carrinho, com identificação e escolha explícita da política de reserva. Uma venda pendente não equivale a um carrinho suspenso.
 - [ ] Orçamento com validade e conversão em venda, recalculando preços e disponibilidade antes da cobrança.
 - [ ] Compartilhar comprovante por ação do operador; definir canal sem envio automático.
@@ -104,6 +106,10 @@ Critérios: não editar estoque sem rastreio; concorrência, cancelamento e repe
 4. Atualizar este arquivo com as lacunas restantes e `checklist.md` com publicação/homologação.
 
 ### Registro desta revisão
+
+- [x] Relatórios, clientes e WhatsApp: `npm test` passou (29/29), TypeScript e build passaram. `tests/customer-reports.integration.mjs` validou ranking, limites inclusivos do período de São Paulo, exclusão de pendentes/canceladas dos totais, clientes inativos, vendas sem cliente, paginação, perfis e isolamento entre lojas. Lojas QA temporárias foram removidas; nenhuma mensagem WhatsApp foi enviada e não houve cobrança externa.
+
+- [x] Clientes e botão Editar em Produtos publicados no commit `a3c5418`; deploy `montante-um2r` confirmado com sucesso. Aguardar confirmação visual do cadastro, seleção no PDV e preenchimento automático; Stone não foi homologada nesta entrega.
 
 - [~] Clientes e produtos: migration `20261019000200_customers` aplicada e status do banco atualizado. Adicionado botão explícito Editar em Produtos ao lado de Excluir; edição ao clicar no nome continua disponível. Exclusões preservam histórico por desativação. Nenhum cliente fictício padrão foi criado e a configuração Stone segue adiada.
 - [x] Qualidade de Clientes: Prisma validate/generate, migration status, TypeScript, build e `npm test` (26/26) passaram. `tests/customers.integration.mjs` exercitou CRUD e seleção no servidor com lojas QA temporárias, removidas ao finalizar; nenhuma cobrança externa foi iniciada. O teste também verifica edição/exclusão de produto associado a venda preservando o item histórico.

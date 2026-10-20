@@ -6,31 +6,7 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function parsePeriod(url: URL) {
-  const startInput = url.searchParams.get('startDate');
-  const endInput = url.searchParams.get('endDate');
-  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-  if ((startInput && !datePattern.test(startInput)) || (endInput && !datePattern.test(endInput))) return null;
-
-  const todayParts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(new Date());
-  const today = `${todayParts.find(({ type }) => type === 'year')?.value}-${todayParts.find(({ type }) => type === 'month')?.value}-${todayParts.find(({ type }) => type === 'day')?.value}`;
-  const startDate = startInput ?? today;
-  const endDate = endInput ?? today;
-  const startCalendarDate = new Date(`${startDate}T00:00:00.000Z`);
-  const endCalendarDate = new Date(`${endDate}T00:00:00.000Z`);
-  if (Number.isNaN(startCalendarDate.getTime()) || Number.isNaN(endCalendarDate.getTime()) || startDate !== startCalendarDate.toISOString().slice(0, 10) || endDate !== endCalendarDate.toISOString().slice(0, 10) || startDate > endDate) return null;
-  const endExclusiveCalendarDate = new Date(endCalendarDate);
-  endExclusiveCalendarDate.setUTCDate(endExclusiveCalendarDate.getUTCDate() + 1);
-  // Store reporting dates use the Brazilian business timezone (UTC−3).
-  return {
-    startDate,
-    endDate,
-    startAt: new Date(`${startDate}T00:00:00-03:00`),
-    endBefore: new Date(`${endExclusiveCalendarDate.toISOString().slice(0, 10)}T00:00:00-03:00`),
-  };
-}
+import { parsePeriod } from '@/lib/reports/period';
 
 /** Management report API only exposes rows belonging to the authenticated tenant. */
 export async function GET(request: Request) {
@@ -47,7 +23,7 @@ export async function GET(request: Request) {
     sold_at: { gte: period.startAt, lt: period.endBefore },
   };
 
-  const [salesSummary, paymentGroups, productRevenueGroups, productQuantityGroups] = await Promise.all([
+  const [salesSummary, paymentGroups, productRevenueGroups, productQuantityGroups, customerGroups, tenant] = await Promise.all([
     prisma.sale.aggregate({ where: saleFilter, _count: { _all: true }, _sum: { total_amount: true } }),
     prisma.paymentAttempt.groupBy({
       by: ['method', 'channel'],
@@ -72,7 +48,20 @@ export async function GET(request: Request) {
       orderBy: { _sum: { quantity: 'desc' } },
       take: 100,
     }),
+    prisma.sale.groupBy({
+      by: ['customer_id'], where: { ...saleFilter, customer_id: { not: null } },
+      _sum: { total_amount: true }, _count: { _all: true },
+      orderBy: [{ _sum: { total_amount: 'desc' } }, { customer_id: 'asc' }], take: 20,
+    }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
   ]);
+
+  const customers = await prisma.customer.findMany({ where: { tenant_id: tenantId, id: { in: customerGroups.flatMap(group => group.customer_id ? [group.customer_id] : []) } }, select: { id: true, name: true, isActive: true } });
+  const customerById = new Map(customers.map(customer => [customer.id, customer]));
+  const topCustomers = customerGroups.flatMap(group => {
+    const customer = customerById.get(group.customer_id ?? '');
+    return customer ? [{ customerId: customer.id, name: customer.name, isActive: customer.isActive, saleCount: group._count._all, revenue: group._sum.total_amount?.toFixed(2) ?? '0.00' }] : [];
+  });
 
   const productIds = [...new Set([...productRevenueGroups, ...productQuantityGroups].map(({ product_id }) => product_id))];
   const products = productIds.length ? await prisma.product.findMany({
@@ -102,6 +91,7 @@ export async function GET(request: Request) {
     amount: (group._sum.amount ?? new Prisma.Decimal(0)).toFixed(2),
   }));
   return NextResponse.json({
+    storeName: tenant?.name ?? 'Montante',
     period: { startDate: period.startDate, endDate: period.endDate },
     summary: {
       revenue: totalRevenue.toFixed(2),
@@ -111,5 +101,6 @@ export async function GET(request: Request) {
     paymentBreakdown,
     topProductsByRevenue: productsByRevenue,
     topProductsByQuantity: productsByQuantity,
+    topCustomers,
   });
 }

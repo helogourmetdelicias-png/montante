@@ -8,6 +8,9 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 
 ## Feito e validado
 
+- [x] Histórico de compras por cliente e ranking de melhores clientes implementados com filtros por período, totais de vendas concluídas e paginação. Relatórios limitados a owner/admin da loja. Testes de integração validaram ordenação por valor líquido, status, limites de datas em São Paulo, clientes inativos, vendas sem vínculo, perfis e isolamento; fixtures QA foram removidas ao terminar. `npm test` (29/29), TypeScript e build passaram.
+- [~] WhatsApp implementado por mensagem de texto com prévia: resumo do relatório e totais/histórico da página do cliente. O usuário escolhe o contato e envia no WhatsApp; não há envio automático nem link público para dados da loja. Codificação/conteúdo testados; abertura visual e envio manual pelo usuário ainda pendentes.
+
 - [x] Clientes: schema, migration `20261019000200_customers`, APIs de busca/cadastro/edição/exclusão lógica, reativação e vínculo opcional à venda implementados. Migration aplicada e `prisma migrate status` confirmou banco atualizado. Testes de validação (26/26 no total), TypeScript e build passaram. Integração autenticada confirmou CRUD, CPF/CNPJ único por loja, perfis, isolamento, vínculo/idempotência e preservação da venda após exclusão do cliente. Exclusão desativa o cadastro; não apaga dados históricos.
 - [~] Tela `/clientes`, seleção/preenchimento do comprador no PDV e nome do cliente no detalhe/comprovante implementados. Produtos agora exibe botão Editar explícito ao lado de Excluir, mantendo edição pelo nome e exclusão lógica. Conferência visual do usuário ainda pendente. Dados de um cliente selecionado não dispensam exigências da Stone; não foi criado cliente fictício padrão e sua configuração segue adiada.
 
@@ -191,6 +194,8 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 5. Implementar OAuth/adapters dos demais provedores quando priorizados e com documentação/credenciais disponíveis.
 
 ## GitHub e preparação para Vercel
+
+- [x] Clientes publicados em `origin/main` no commit `a3c5418`; check `Vercel – montante-um2r` confirmou sucesso no domínio em uso. Inclui cadastro/edição/exclusão lógica de clientes, seleção no PDV e botão Editar em Produtos. O segundo projeto `montante` reportou falha, como nos deploys anteriores, e não atende o domínio principal. Conferência visual do usuário permanece pendente.
 
 - [x] Funcionalidades publicadas em `origin/main` no commit `714fa37`: histórico/detalhe de vendas, comprovante não fiscal, desconto percentual, tela cheia e checklists. Check Vercel `montante-um2r` confirmado como `success`; domínio `montante-um2r-seven.vercel.app` responde e protege `/vendas` com redirecionamento ao login. Segundo projeto `montante` reportou `failure`; não corresponde ao domínio em uso. Conferência visual autenticada e impressora física ainda pendentes.
 
