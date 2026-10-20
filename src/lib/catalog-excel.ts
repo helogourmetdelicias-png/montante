@@ -149,7 +149,7 @@ export async function readCatalogWorkbook(kind: CatalogKind, buffer: Buffer) {
   return { customers, products, errors };
 }
 
-export async function createCatalogWorkbook(kind: CatalogKind, rows: Record<string, unknown>[]) {
+export async function createCatalogWorkbook(kind: CatalogKind, rows: Record<string, unknown>[], suggestedCategories: readonly string[] = PRODUCT_CATEGORIES) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(sheetName(kind), { views: [{ state: 'frozen', ySplit: 1 }] });
   sheet.columns = catalogColumns[kind].map(col => ({ header: col.title, key: col.key, width: col.key === 'name' ? 36 : 22 }));
@@ -174,7 +174,7 @@ export async function createCatalogWorkbook(kind: CatalogKind, rows: Record<stri
   if (kind === 'products') {
     const categories = workbook.addWorksheet('Categorias');
     categories.getColumn(1).width = 65;
-    categories.addRows([['Categoria'], ...PRODUCT_CATEGORIES.map(name => [name])]);
+    categories.addRows([['Categoria'], ...suggestedCategories.map(name => [name])]);
   }
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }

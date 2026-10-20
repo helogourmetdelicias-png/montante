@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { runSerializableTransaction } from '@/lib/database/transactions';
+import { getNicheCategories } from '@/lib/business-niche';
 import { createCatalogWorkbook, readCatalogWorkbook, EXPORT_MAX_ROWS, IMPORT_MAX_BYTES, type CatalogKind, type ImportIssue } from '@/lib/catalog-excel';
 
 type ParsedWorkbook = Awaited<ReturnType<typeof readCatalogWorkbook>>;
@@ -45,7 +46,8 @@ export async function exportCatalog(request: Request, kind: CatalogKind) {
         costPrice: row.cost_price, stockMinAlert: row.stock_min_alert, stockAisle: row.stock_aisle, stockShelf: row.stock_shelf, isActive: row.is_active }));
     }
     if (rows.length > EXPORT_MAX_ROWS) return NextResponse.json({ error: 'A exportação aceita até 10.000 cadastros. Nenhum arquivo parcial foi gerado.' }, { status: 422 });
-    const buffer = await createCatalogWorkbook(kind, rows);
+    const tenant = kind === 'products' ? await prisma.tenant.findUnique({ where: { id: identity.tenantId! }, select: { niche: true } }) : null;
+    const buffer = await createCatalogWorkbook(kind, rows, getNicheCategories(tenant?.niche ?? null));
     return new Response(new Uint8Array(buffer), { headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="${template ? 'modelo-' : ''}${kind === 'customers' ? 'clientes' : 'produtos'}.xlsx"`,

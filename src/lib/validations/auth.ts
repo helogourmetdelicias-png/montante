@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BUSINESS_NICHES } from '../business-niche';
 
 export const loginSchema = z.object({
   email: z.string().email('E-mail inválido'),
@@ -18,6 +19,7 @@ export const registerSchema = z.object({
     .max(50)
     .regex(/^[a-z0-9-]+$/, 'Apenas letras minúsculas, números e hífens'),
   cnpj: z.string().optional(),
+  niche: z.enum(BUSINESS_NICHES).optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Senhas não coincidem',
   path: ['confirmPassword'],

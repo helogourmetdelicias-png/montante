@@ -27,6 +27,7 @@ export async function POST(request: Request) {
         created_at: createdAt,
         subscription: { create: { trial_ends_at: trialEnd, next_billing_at: trialEnd } },
         name: input.tenantName.trim(),
+        niche: input.niche ?? null,
         slug,
         email,
         cnpj: input.cnpj?.trim() || null,

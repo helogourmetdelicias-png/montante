@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import NicheChoices from '@/components/niche-choices';
+import type { BusinessNiche } from '@/lib/business-niche';
 
 function slugify(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
@@ -21,6 +23,7 @@ export default function RegisterPage() {
   const [tenantName, setTenantName] = useState('');
   const [tenantSlug, setTenantSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
+  const [niche, setNiche] = useState<BusinessNiche | ''>('');
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,6 +38,7 @@ export default function RegisterPage() {
       tenantName: tenantName.trim(),
       tenantSlug: tenantSlug.trim().toLowerCase(),
       cnpj: String(form.get('cnpj') ?? '').trim() || undefined,
+      niche,
     };
 
     try {
@@ -91,6 +95,7 @@ export default function RegisterPage() {
                 <div className="space-y-2"><Label htmlFor="password">Senha</Label><Input id="password" name="password" type="password" required minLength={8} autoComplete="new-password" /></div>
                 <div className="space-y-2"><Label htmlFor="confirmPassword">Confirmar senha</Label><Input id="confirmPassword" name="confirmPassword" type="password" required minLength={8} autoComplete="new-password" /></div>
               </section>
+              <NicheChoices value={niche} onChange={setNiche} disabled={busy} />
               {error && <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
               <Button type="submit" className="w-full" disabled={busy || !tenantSlug.trim()}>{busy ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Criando loja…</> : <>Criar loja e continuar <ArrowRight className="ml-2 h-4 w-4" /></>}</Button>
             </form>

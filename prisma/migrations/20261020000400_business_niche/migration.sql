@@ -1,0 +1,2 @@
+CREATE TYPE "BusinessNiche" AS ENUM ('CONSTRUCTION', 'COSMETICS', 'CLOTHING', 'BEVERAGES', 'OTHER');
+ALTER TABLE "Tenant" ADD COLUMN "niche" "BusinessNiche";
