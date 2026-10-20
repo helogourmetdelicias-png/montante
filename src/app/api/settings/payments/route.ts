@@ -13,6 +13,9 @@ const credentialsSchema = z.record(z.string().trim().min(1).max(64), z.string().
   if (Object.keys(values).length > 20) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'Limite de 20 campos de credencial.' });
   }
+}).transform(values => {
+  const supplied = Object.fromEntries(Object.entries(values).filter(([, value]) => value.trim()));
+  return Object.keys(supplied).length ? supplied : undefined;
 });
 
 const configSchema = z.object({

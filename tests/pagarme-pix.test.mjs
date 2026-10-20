@@ -2,6 +2,44 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PagarMeGateway } from '../src/lib/payment/gateway-adapter.ts';
 import { createPaymentAttemptSchema } from '../src/lib/validations/payment-attempt.ts';
+import { testPagarMeConnection } from '../src/lib/payment/pagarme-connection.ts';
+
+test('Pagar.me connection test only reads and never exposes credentials or orders', async () => {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = async (url, options) => {
+    called = true;
+    assert.equal(url, 'https://api.pagar.me/core/v5/orders?size=1');
+    assert.equal(options.method, 'GET');
+    assert.equal(options.body, undefined);
+    assert.equal(options.redirect, 'error');
+    assert.equal(options.headers.Authorization, `Basic ${Buffer.from('sk_test_diagnostic:').toString('base64')}`);
+    return Response.json({ data: [{ private: 'merchant-order-data' }] });
+  };
+  try {
+    const result = await testPagarMeConnection(' sk_test_diagnostic ');
+    assert.ok(called);
+    assert.equal(result.ok, true);
+    assert.equal(JSON.stringify(result).includes('merchant-order-data'), false);
+    assert.equal(JSON.stringify(result).includes('sk_test_diagnostic'), false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('Pagar.me diagnostic separates rejected credentials, permissions and connection errors', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const [status, code] of [[401, 'PROVIDER_UNAUTHORIZED'], [403, 'PROVIDER_FORBIDDEN'], [500, 'PROVIDER_ERROR']]) {
+      globalThis.fetch = async () => Response.json({ error: 'not returned' }, { status });
+      assert.equal((await testPagarMeConnection('sk_test_diagnostic')).code, code);
+    }
+    globalThis.fetch = async () => { throw new Error('private network detail'); };
+    const result = await testPagarMeConnection('sk_test_diagnostic');
+    assert.equal(result.code, 'CONNECTION_ERROR');
+    assert.equal(JSON.stringify(result).includes('private network detail'), false);
+    globalThis.fetch = async () => { assert.fail('invalid key must not be sent'); };
+    assert.equal((await testPagarMeConnection('pk_test_public')).code, 'INVALID_KEY_FORMAT');
+  } finally { globalThis.fetch = originalFetch; }
+});
 
 const request = {
   amount: 1250,

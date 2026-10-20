@@ -157,6 +157,17 @@ export default function PaymentSettingsPage() {
     }
   }
 
+  async function testConnection() {
+    setBusy(true); setNotice(null);
+    try {
+      const response = await fetch('/api/settings/payments/test', { method: 'POST' });
+      const data = await readJson(response);
+      if (!response.ok) throw new Error(data.error ?? 'Não foi possível testar a conexão.');
+      setNotice({ kind: data.ok ? 'success' : 'error', text: [data.message, data.environmentWarning].filter(Boolean).join(' ') });
+    } catch (error) { setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Não foi possível testar a conexão.' }); }
+    finally { setBusy(false); }
+  }
+
   async function registerTerminal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -243,7 +254,8 @@ export default function PaymentSettingsPage() {
               <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} disabled={selected.state === 'planned'} className="h-4 w-4 accent-primary" /><span><strong className="block">Ativar este provedor</strong><span className="text-xs text-muted-foreground">Provedores em preparação não podem ser ativados.</span></span></label>
               <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={isDefault} onChange={(event) => setIsDefault(event.target.checked)} disabled={!isActive} className="h-4 w-4 accent-primary" /><span><strong className="block">Usar como padrão</strong><span className="text-xs text-muted-foreground">Somente um padrão deve ser escolhido por loja.</span></span></label>
             </div>
-            <div className="flex justify-end"><Button type="submit" disabled={busy || loading || !pageData}><Save className="mr-2 h-4 w-4" />{busy ? 'Salvando…' : 'Salvar configuração'}</Button></div>
+            {selected.id === 'pagarme' && <p className="text-xs text-muted-foreground">Salve a configuração antes de testar. O teste usa a chave já salva no servidor, sem gerar cobrança ou validar a habilitação do Pix.</p>}
+            <div className="flex flex-wrap justify-end gap-3">{selected.id === 'pagarme' && <Button type="button" variant="outline" disabled={busy || loading || !currentConfig?.credentialsConfigured || Object.values(credentials).some(value => value.trim())} onClick={testConnection}><RefreshCw className="mr-2 h-4 w-4" />Testar conexão sem cobrança</Button>}<Button type="submit" disabled={busy || loading || !pageData}><Save className="mr-2 h-4 w-4" />{busy ? 'Processando…' : 'Salvar configuração'}</Button></div>
           </form>
         </CardContent>
       </Card>}
