@@ -64,3 +64,13 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Sidebar width follows its visible state; dialogs remain centered in the viewport. */
+@media (min-width: 1024px) {
+  body:has([data-store-sidebar="expanded"]) { padding-left: 15rem; }
+  body:has([data-store-sidebar="collapsed"]) { padding-left: 72px; }
+}
+@media print {
+  [data-store-sidebar] { display: none !important; }
+  body { padding-left: 0 !important; }
+}

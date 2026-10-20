@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
-import { BarChart3, CreditCard, Package, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BarChart3, CreditCard, Menu, PanelLeftClose, PanelLeftOpen, Package, Settings, ShoppingBag, Users, Wallet, X } from 'lucide-react';
 
 type StorePage = 'pdv' | 'sales' | 'customers' | 'products' | 'cash' | 'reports' | 'settings' | 'payments' | 'subscription';
 
@@ -19,26 +22,40 @@ const navigationItems: { href: string; label: string; page: StorePage; icon: typ
   { href: '/configuracoes/pagamentos', label: 'Configurações', page: 'settings', icon: Settings, managementOnly: true },
 ];
 
-/** Shared store navigation keeps the checkout and management screens easy to reach. */
+/** Collapsible desktop column and mobile drawer share role-aware navigation. */
 export default function StoreNavigation({ activePage, canManageStore }: StoreNavigationProps) {
-  return (
-    <nav aria-label="Navegação da loja" className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
-      {navigationItems
-        .filter(({ managementOnly }) => !managementOnly || canManageStore)
-        .map(({ href, label, page, icon: Icon }) => {
-          const active = page === activePage;
-          return (
-            <Link
-              key={page}
-              href={href}
-              aria-current={active ? 'page' : undefined}
-              className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors ${active ? 'bg-white text-orange-700 shadow-sm' : 'text-slate-600 hover:bg-white hover:text-slate-900'}`}
-            >
-              <Icon aria-hidden="true" size={17} />
-              <span>{label}</span>
-            </Link>
-          );
-        })}
-    </nav>
-  );
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem('montante.sidebar.collapsed') === 'true'); } catch { /* Storage can be unavailable. */ }
+  }, []);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileOpen(false); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [mobileOpen]);
+  function toggle() {
+    setCollapsed(value => {
+      try { localStorage.setItem('montante.sidebar.collapsed', String(!value)); } catch { /* Keep the control usable without storage. */ }
+      return !value;
+    });
+  }
+  return <>
+    <button type="button" onClick={() => setMobileOpen(true)} aria-expanded={mobileOpen} aria-controls="store-sidebar" className="inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm lg:hidden"><Menu size={18} />Menu</button>
+    {mobileOpen && <button type="button" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden" />}
+    <aside id="store-sidebar" data-store-sidebar={collapsed ? 'collapsed' : 'expanded'} aria-label="Menu da loja" className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-slate-200 bg-white transition-transform ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 ${collapsed ? 'lg:w-[72px]' : 'lg:w-60'}`}>
+      <div className="flex h-20 shrink-0 items-center justify-between gap-2 border-b px-3">
+        <Link href="/pdv" className={`flex min-w-0 items-center gap-2 text-orange-600 ${collapsed ? 'lg:hidden' : ''}`} onClick={() => setMobileOpen(false)}><ShoppingBag size={25} /><span className="text-lg font-bold">Montante</span></Link>
+        <button type="button" onClick={toggle} aria-label={collapsed ? 'Exibir menu lateral' : 'Recolher menu lateral'} aria-expanded={!collapsed} className="hidden rounded-lg p-3 text-slate-500 hover:bg-orange-50 hover:text-orange-700 lg:block">{collapsed ? <PanelLeftOpen size={21} /> : <PanelLeftClose size={21} />}</button>
+        <button type="button" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="p-2 lg:hidden"><X size={20} /></button>
+      </div>
+      <nav aria-label="Navegação da loja" className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+        {navigationItems.filter(item => !item.managementOnly || canManageStore).map(({ href, label, page, icon: Icon }) => <Link key={page} href={href} title={label} aria-label={label} aria-current={page === activePage ? 'page' : undefined} onClick={() => setMobileOpen(false)} className={`flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-medium ${page === activePage ? 'bg-orange-50 text-orange-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
+          <Icon aria-hidden="true" size={20} className="shrink-0" /><span className={collapsed ? 'lg:hidden' : ''}>{label}</span>
+        </Link>)}
+      </nav>
+      <p className={`border-t p-4 text-xs text-slate-400 ${collapsed ? 'lg:hidden' : ''}`}>Gestão da sua loja</p>
+    </aside>
+  </>;
 }

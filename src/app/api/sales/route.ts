@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
 import { auth } from '@/auth';
 import { runSerializableTransaction } from '@/lib/database/transactions';
 import { prisma } from '@/lib/prisma';
@@ -136,9 +137,10 @@ export async function POST(request: Request) {
       }
       const cashRegister = await tx.cashRegisterSession.findFirst({
         where: { tenant_id: tenantId, user_id: userId, status: 'OPEN' },
-        select: { id: true },
+        select: { id: true, opened_at: true },
       });
       if (!cashRegister) throw new SaleInputError('Abra o caixa antes de iniciar uma venda.', 409);
+      if (!isCurrentBusinessDay(cashRegister.opened_at, now)) throw new SaleInputError('Feche o caixa do dia anterior e abra o caixa de hoje antes de iniciar uma venda.', 409);
 
       const productIds = items.map((item) => item.productId);
       const products = await tx.product.findMany({

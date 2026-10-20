@@ -8,6 +8,9 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 
 ## Feito e validado
 
+- [x] Enter no valor recebido em dinheiro aciona a mesma conclusão do botão; navegador local confirmou bloqueio com R$ 1,00 para venda de R$ 12,34 e conclusão com R$ 20,00/troco R$ 7,66. Menu compartilhado virou coluna esquerda recolhível, preservando perfis, preferência no navegador e abertura no celular. Tela cheia e Sessão ativa seguem no topo do PDV, junto da data atual em São Paulo.
+- [x] Caixa diário: API impede novas vendas e movimentações com turno anterior, exige fechamento/conferência e abertura do dia atual, sem fechar automaticamente. Pendências existentes podem ser resolvidas antes de fechar. Testes cobriram virada em São Paulo, caixa anterior, fechamento/reabertura, isolamento e preservação dos fluxos de venda. `npm test` passou 37/37; integração de banco e conferência autenticada local passaram. Fixtures QA removidas. Guia em `docs/quick-sales.md`.
+
 - [x] Venda rápida por valor livre sem produto/cliente implementada em `POST /api/sales`, com caixa obrigatório, validação em centavos, modo persistido e idempotência incluindo o valor. Migration `20261020000200_quick_sales` aplicada. Integração com banco validou dinheiro/troco, permissões/isolamento, reexecução, comprovante, relatórios, contagem da assinatura, cancelamento/expiração sem estoque e preservação da venda avançada. Fixtures removidas.
 - [x] PDV com modais F1 Venda rápida e F2 Venda avançada; navegador local validou os dois atalhos, seleção de produto, fluxo rápido sem produto/cliente, `1234 → 12,34`, recebido `2000 → 20,00`, troco R$ 7,66 e conclusão. Desconto em reais também conferido. Campos monetários do PDV, caixa e preço do produto compartilham a máscara bancária; quantidades e percentuais preservam formato próprio. `npm test` passou 36/36; validação final de build e publicação registradas abaixo quando concluídas. Guia em `docs/quick-sales.md`.
 
@@ -203,6 +206,10 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 5. Implementar OAuth/adapters dos demais provedores quando priorizados e com documentação/credenciais disponíveis.
 
 ## GitHub e preparação para Vercel
+
+- [x] Enter para receber dinheiro, menu lateral e caixa diário: TypeScript e build de produção sem lint passaram em 20/10/2026. Testes unitários 37/37, integração de banco e navegador local passaram. Não há alteração de schema nesta entrega.
+
+- [x] Venda rápida, modais F1/F2 e máscara monetária publicados em `origin/main` no commit `c6bf966` em 20/10/2026. Check Vercel `montante-um2r` confirmou `success` / “Deployment has completed”. Atualizar o PDV para carregar a nova interface. Validação funcional autenticada foi feita localmente com fixtures removidas ao terminar.
 
 - [x] Venda rápida e máscara monetária: TypeScript e build de produção (`npx next build --no-lint`) passaram em 20/10/2026, incluindo PDV, caixa, produtos e comprovante. Validação local autenticada confirmou F1/F2, entrada em centavos, recebimento em dinheiro e seleção avançada. Nenhuma cobrança externa foi feita; lojas QA foram removidas.
 

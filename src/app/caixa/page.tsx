@@ -8,5 +8,5 @@ export const dynamic = 'force-dynamic';
 export default async function CashRegisterRoute() {
   const session = await auth();
   if (!session?.user?.tenantId) redirect('/login');
-  return <CashRegisterPage operatorName={session.user.name ?? 'Operador'} />;
+  return <CashRegisterPage operatorName={session.user.name ?? 'Operador'} canManageStore={['owner', 'admin'].includes(session.user.role)} />;
 }

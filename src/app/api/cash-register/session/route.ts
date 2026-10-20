@@ -1,4 +1,5 @@
 import { auth } from '@/auth';
+import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
 import { runSerializableTransaction } from '@/lib/database/transactions';
 import { getCashRegisterSummary, expectedDrawerAmount } from '@/lib/cash-register/summary';
 import { prisma } from '@/lib/prisma';
@@ -51,6 +52,7 @@ export async function GET() {
       initialAmount: register.initial_amount.toFixed(2),
       expectedAmount: expected.toFixed(2),
       openedAt: register.opened_at,
+      needsClosing: !isCurrentBusinessDay(register.opened_at),
       movements: register.movements.map((movement) => ({
         id: movement.id,
         type: movement.type.toLowerCase(),
@@ -78,9 +80,9 @@ export async function POST(request: Request) {
     const register = await runSerializableTransaction(async (tx) => {
       const openRegister = await tx.cashRegisterSession.findFirst({
         where: { tenant_id: identity.tenantId, user_id: identity.userId, status: 'OPEN' },
-        select: { id: true },
+        select: { id: true, opened_at: true },
       });
-      if (openRegister) return { existing: true, id: openRegister.id };
+      if (openRegister) return { existing: true, id: openRegister.id, needsClosing: !isCurrentBusinessDay(openRegister.opened_at) };
       const pendingSales = await tx.sale.count({
         where: {
           tenant_id: identity.tenantId,
@@ -99,7 +101,7 @@ export async function POST(request: Request) {
       });
       return { existing: false, id: created.id };
     });
-    if (register.existing) return NextResponse.json({ error: 'Você já tem um caixa aberto.' }, { status: 409 });
+    if (register.existing) return NextResponse.json({ error: register.needsClosing ? 'Feche o caixa do dia anterior antes de abrir o caixa de hoje.' : 'Você já tem um caixa aberto.' }, { status: 409 });
     return NextResponse.json({ sessionId: register.id }, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === 'CASH_REGISTER_HAS_PENDING_SALES') return NextResponse.json({ error: 'Finalize ou cancele as vendas pendentes antes de reabrir o caixa.' }, { status: 409 });

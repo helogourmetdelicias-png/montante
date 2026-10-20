@@ -1,4 +1,5 @@
 import { auth } from '@/auth';
+import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
 import { PAYMENT_PROVIDER_CATALOG } from '@/lib/payment/provider-catalog';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
@@ -52,6 +53,6 @@ export async function GET() {
   return NextResponse.json({
     options: [...methods, cashOption, ...(splitOption ? [splitOption] : []), ...terminalMethods],
     canSimulatePixApproval,
-    cashRegister: openRegister ? { isOpen: true, openedAt: openRegister.opened_at } : { isOpen: false },
+    cashRegister: openRegister ? { isOpen: isCurrentBusinessDay(openRegister.opened_at), needsClosing: !isCurrentBusinessDay(openRegister.opened_at), openedAt: openRegister.opened_at } : { isOpen: false, needsClosing: false },
   });
 }

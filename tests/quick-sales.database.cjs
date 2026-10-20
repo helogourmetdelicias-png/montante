@@ -33,7 +33,19 @@ const request = data => new Request('https://qa.example/api/sales', { method: 'P
     assert.equal((await salesRoute.POST(request(input))).status, 401);
     session = { user: { id: operator.id, tenantId, role: 'staff' } };
     assert.equal((await salesRoute.POST(request(input))).status, 409, 'closed register must block quick sales');
-    await prisma.cashRegisterSession.create({ data: { tenant_id: tenantId, user_id: operator.id, initial_amount: '0' } });
+    const drawer = await prisma.cashRegisterSession.create({ data: { tenant_id: tenantId, user_id: operator.id, initial_amount: '0' } });
+    // A previous day's open drawer must be reconciled, never reused for a new day.
+    await prisma.cashRegisterSession.update({ where: { id: drawer.id }, data: { opened_at: new Date(Date.now() - 86400000) } });
+    assert.equal((await salesRoute.POST(request(input))).status, 409);
+    const registerRoute = require('../src/app/api/cash-register/session/route.ts');
+    assert.equal((await registerRoute.GET()).status, 200);
+    assert.equal((await (await registerRoute.GET()).json()).session.needsClosing, true);
+    assert.equal((await registerRoute.POST(request({ initialAmount: 0 }))).status, 409);
+    const movementRoute = require('../src/app/api/cash-register/movements/route.ts');
+    assert.equal((await movementRoute.POST(request({ type: 'supply', amount: 1, description: 'QA previous day' }))).status, 409);
+    assert.equal((await registerRoute.PATCH(request({ sessionId: drawer.id, declaredAmount: 0 }))).status, 200);
+    assert.equal((await salesRoute.POST(request(input))).status, 409);
+    assert.equal((await registerRoute.POST(request({ initialAmount: 0 }))).status, 201);
     for (const patch of [{ quickAmount: 0 }, { quickAmount: 12.345 }, { items: [{ productId: product.id, quantity: 1 }] }]) {
       assert.equal((await salesRoute.POST(request({ ...input, ...patch }))).status, 400);
     }
@@ -84,7 +96,7 @@ const request = data => new Request('https://qa.example/api/sales', { method: 'P
     assert.equal(advancedResponse.status, 201);
     assert.equal((await advancedResponse.json()).sale.mode, 'advanced');
     assert.equal((await prisma.product.findUniqueOrThrow({ where: { id: product.id } })).stock_quantity.toString(), '8');
-    console.log('PASS: quick amount validation, no product/customer, register, tenant isolation, idempotency, cash/change, receipt, reports, billing count, cancellation/expiration and advanced stock reservation.');
+    console.log('PASS: daily drawer close/open, stale drawer rejection, quick amount validation, no product/customer, tenant isolation, idempotency, cash/change, receipt, reports, billing count, cancellation/expiration and advanced stock reservation.');
   } finally {
     for (const tenant of tenants) {
       await prisma.sale.deleteMany({ where: { tenant_id: tenant.id } });

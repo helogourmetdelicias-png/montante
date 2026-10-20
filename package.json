@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "test": "node --experimental-strip-types --test tests/sales-reservations.test.mjs tests/mercado-pago-cancel.test.mjs tests/mercadopago-webhook.test.mjs tests/cron-auth.test.mjs tests/cash-register.test.mjs tests/pagarme-pix.test.mjs tests/customers.test.mjs tests/report-sharing.test.mjs tests/billing.test.mjs tests/quick-sales.test.mjs",
+    "test": "node --experimental-strip-types --test tests/sales-reservations.test.mjs tests/mercado-pago-cancel.test.mjs tests/mercadopago-webhook.test.mjs tests/cron-auth.test.mjs tests/cash-register.test.mjs tests/pagarme-pix.test.mjs tests/customers.test.mjs tests/report-sharing.test.mjs tests/billing.test.mjs tests/quick-sales.test.mjs tests/business-day.test.mjs",
     "test:reservations:db": "node --env-file=.env --experimental-strip-types tests/sales-reservations.database.mjs",
     "test:billing:db": "node --env-file=.env tests/billing.database.cjs",
     "test:quick-sales:db": "node --env-file=.env tests/quick-sales.database.cjs",
