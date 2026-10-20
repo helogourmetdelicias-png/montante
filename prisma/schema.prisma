@@ -84,6 +84,9 @@ model User {
   email          String
   email_verified DateTime?
   password_hash  String?
+  pin_hash       String?
+  pin_failures   Int       @default(0)
+  pin_locked_until DateTime?
   role           String    @default("staff")
   avatar_url     String?
   phone          String?

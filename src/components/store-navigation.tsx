@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { signOut } from 'next-auth/react';
+import { OperatorSwitch } from '@/components/operator-access';
 import { useEffect, useState } from 'react';
-import { BarChart3, Menu, PanelLeftClose, PanelLeftOpen, Package, Settings, ShoppingBag, UserCircle, Users, Wallet, X } from 'lucide-react';
+import { BarChart3, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Package, Settings, ShoppingBag, UserCircle, Users, Wallet, X } from 'lucide-react';
 
 type StorePage = 'pdv' | 'sales' | 'customers' | 'products' | 'cash' | 'reports' | 'settings' | 'payments' | 'subscription' | 'profile';
 
@@ -26,6 +28,19 @@ const navigationItems: { href: string; label: string; page: StorePage; icon: typ
 export default function StoreNavigation({ activePage, canManageStore }: StoreNavigationProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState('');
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError('');
+    try {
+      await signOut({ callbackUrl: '/login' });
+    } catch {
+      setSignOutError('Não foi possível sair. Tente novamente.');
+      setSigningOut(false);
+    }
+  }
   useEffect(() => {
     try { setCollapsed(localStorage.getItem('montante.sidebar.collapsed') === 'true'); } catch { /* Storage can be unavailable. */ }
   }, []);
@@ -55,7 +70,11 @@ export default function StoreNavigation({ activePage, canManageStore }: StoreNav
           <Icon aria-hidden="true" size={20} className="shrink-0" /><span className={collapsed ? 'lg:hidden' : ''}>{label}</span>
         </Link>)}
       </nav>
-      <p className={`border-t p-4 text-xs text-slate-400 ${collapsed ? 'lg:hidden' : ''}`}>Gestão da sua loja</p>
+      <div className="shrink-0 border-t p-2">
+        <OperatorSwitch collapsed={collapsed} />
+        <button type="button" onClick={handleSignOut} disabled={signingOut} title="Sair da conta" aria-label="Sair da conta" className="flex min-h-12 w-full items-center gap-3 rounded-xl px-4 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"><LogOut aria-hidden="true" size={20} className="shrink-0" /><span className={collapsed ? 'lg:hidden' : ''}>{signingOut ? 'Saindo…' : 'Sair da conta'}</span></button>
+        {signOutError && <p role="alert" className="px-2 pb-2 text-xs text-red-600">{signOutError}</p>}
+      </div>
     </aside>
   </>;
 }
