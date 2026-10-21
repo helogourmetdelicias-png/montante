@@ -9,6 +9,8 @@ import StoreNavigation from '@/components/store-navigation';
 import CatalogExcelControls from '@/components/catalog-excel-controls';
 import { getNicheCategories, type BusinessNiche } from '@/lib/business-niche';
 import NicheOnboarding from '@/components/niche-onboarding';
+import NicheProductFields from './niche-product-fields';
+import { getNicheAttributeKeys, type ProductAttributes } from '@/lib/product-attributes';
 import { Fragment } from 'react';
 
 type Product = {
@@ -23,6 +25,8 @@ type Product = {
   stockAisle: string | null;
   stockShelf: string | null;
   category: string | null;
+  brand: string | null;
+  attributes: ProductAttributes;
   isActive: boolean;
 };
 
@@ -37,12 +41,14 @@ type ProductDraft = {
   stockAisle: string;
   stockShelf: string;
   category: string;
+  brand: string;
+  attributes: ProductAttributes;
   isActive: boolean;
 };
 
 const EMPTY_DRAFT: ProductDraft = {
   name: '', sku: '', barcode: '', unitOfMeasure: 'un', sellByFraction: false,
-  price: '', stockQuantity: '0', stockAisle: '', stockShelf: '', category: '', isActive: true,
+  price: '', stockQuantity: '0', stockAisle: '', stockShelf: '', category: '', brand: '', attributes: {}, isActive: true,
 };
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -58,17 +64,24 @@ function draftFromProduct(product: Product): ProductDraft {
     stockAisle: product.stockAisle ?? '',
     stockShelf: product.stockShelf ?? '',
     category: product.category ?? '',
+    brand: product.brand ?? '',
+    attributes: product.attributes ?? {},
     isActive: product.isActive,
   };
 }
 
-function toPayload(draft: ProductDraft) {
+function toPayload(draft: ProductDraft, niche: BusinessNiche | null) {
   return {
     name: draft.name.trim(), sku: draft.sku.trim() || null, barcode: draft.barcode.trim() || null,
     unitOfMeasure: draft.unitOfMeasure.trim(), sellByFraction: draft.sellByFraction,
     price: Number(draft.price), stockQuantity: Number(draft.stockQuantity),
     stockAisle: draft.stockAisle.trim() || null, stockShelf: draft.stockShelf.trim() || null,
     category: draft.category.trim() || null, isActive: draft.isActive,
+    ...((niche === 'COSMETICS' || niche === 'CONSTRUCTION') ? { brand: draft.brand.trim() || null } : {}),
+    attributes: Object.fromEntries(getNicheAttributeKeys(niche).map(key => {
+      const value = draft.attributes[key];
+      return [key, typeof value === 'string' ? value.trim() || null : value ?? (key === 'requiresContainer' ? false : null)];
+    })),
   };
 }
 
@@ -132,7 +145,7 @@ export default function ProductCatalog({ initialNiche }: { initialNiche: Busines
       const response = await fetch(editingId ? `/api/products/${editingId}` : '/api/products', {
         method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(toPayload(draft)),
+        body: JSON.stringify(toPayload(draft, niche)),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(readError(result));
@@ -159,9 +172,9 @@ export default function ProductCatalog({ initialNiche }: { initialNiche: Busines
     setMessage('Produto desativado. O histórico de vendas foi preservado.');
   }
 
-  const fields: Array<{ key: Exclude<keyof ProductDraft, 'sellByFraction' | 'isActive'>; label: string; type?: string; step?: string }> = [
+  const fields: Array<{ key: Exclude<keyof ProductDraft, 'sellByFraction' | 'isActive' | 'brand' | 'attributes'>; label: string; type?: string; step?: string }> = [
     { key: 'name', label: 'Nome do produto' }, { key: 'sku', label: 'SKU' },
-    { key: 'barcode', label: 'Código de barras' }, { key: 'unitOfMeasure', label: 'Unidade (ex.: saco, m, kg)' },
+    { key: 'barcode', label: 'Código de barras' }, { key: 'unitOfMeasure', label: niche === 'CONSTRUCTION' ? 'Unidade de Venda Fracionada (m², m, kg, saco, un)' : 'Unidade de venda' },
     { key: 'price', label: 'Preço de venda (R$)', type: 'number', step: '0.01' },
     { key: 'stockQuantity', label: 'Estoque inicial', type: 'number', step: draft.sellByFraction ? '0.001' : '1' },
     { key: 'stockAisle', label: 'Corredor' }, { key: 'stockShelf', label: 'Prateleira' },
@@ -187,7 +200,7 @@ export default function ProductCatalog({ initialNiche }: { initialNiche: Busines
 
       {message && <div role="status" className="fixed bottom-5 left-1/2 z-40 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl"><CircleAlert size={17} />{message}<button type="button" aria-label="Fechar aviso" onClick={() => setMessage('')}><X size={16} /></button></div>}
 
-      {editorOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditorOpen(false); }}><section role="dialog" aria-modal="true" aria-labelledby="product-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-start justify-between"><div><h2 id="product-title" className="text-lg font-semibold">{editingId ? 'Editar produto' : 'Novo produto'}</h2><p className="mt-1 text-sm text-slate-500">Informe as medidas e o estoque conforme a unidade comercial.</p></div><button type="button" onClick={() => setEditorOpen(false)} aria-label="Fechar" className="text-slate-400 hover:text-slate-700"><X size={19} /></button></div><form onSubmit={saveProduct}><div className="grid gap-4 sm:grid-cols-2">{fields.map(({ key, label, type, step }) => <label key={key} className={`block text-sm font-medium ${key === 'name' ? 'sm:col-span-2' : ''}`}>{label}{key === 'category' ? <><Input list="product-category-options" value={draft.category} onChange={event => setDraft(current => ({ ...current, category: event.target.value }))} placeholder="Selecione ou digite uma categoria" className="mt-2 h-10 font-normal" /><datalist id="product-category-options">{categoryOptions.map(name => <option key={name} value={name} />)}</datalist></> : key === 'price' ? <MoneyInput required value={draft.price} onValueChange={value => setDraft(current => ({ ...current, price: value }))} className="mt-2 h-10 font-normal" /> : <Input required={key === 'name' || key === 'unitOfMeasure' || key === 'stockQuantity'} type={type ?? 'text'} step={step} min={type === 'number' ? '0' : undefined} value={draft[key]} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))} className="mt-2 h-10 font-normal" />}</label>)}<label className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-sm sm:col-span-2"><input type="checkbox" checked={draft.sellByFraction} onChange={(event) => setDraft((current) => ({ ...current, sellByFraction: event.target.checked }))} className="h-4 w-4 accent-orange-600" /><span><span className="block font-medium">Permitir venda fracionada</span><span className="text-xs font-normal text-slate-500">Use para metros, peso, volume ou sacos fracionáveis.</span></span></label>{editingId && <label className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-sm sm:col-span-2"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft((current) => ({ ...current, isActive: event.target.checked }))} className="h-4 w-4 accent-orange-600" /><span className="font-medium">Produto ativo e disponível no PDV</span></label>}</div><div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditorOpen(false)}>Cancelar</Button><Button type="submit" disabled={busy} className="bg-orange-600 hover:bg-orange-700">{busy && <LoaderCircle className="mr-2 animate-spin" size={16} />}Salvar produto</Button></div></form></section></div>}
+      {editorOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditorOpen(false); }}><section role="dialog" aria-modal="true" aria-labelledby="product-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-start justify-between"><div><h2 id="product-title" className="text-lg font-semibold">{editingId ? 'Editar produto' : 'Novo produto'}</h2><p className="mt-1 text-sm text-slate-500">Informe as medidas e o estoque conforme a unidade comercial.</p></div><button type="button" onClick={() => setEditorOpen(false)} aria-label="Fechar" className="text-slate-400 hover:text-slate-700"><X size={19} /></button></div><form onSubmit={saveProduct}><div className="grid gap-4 sm:grid-cols-2">{fields.map(({ key, label, type, step }) => <label key={key} className={`block text-sm font-medium ${key === 'name' ? 'sm:col-span-2' : ''}`}>{label}{key === 'category' ? <><Input list="product-category-options" value={draft.category} onChange={event => setDraft(current => ({ ...current, category: event.target.value }))} placeholder="Selecione ou digite uma categoria" className="mt-2 h-10 font-normal" /><datalist id="product-category-options">{categoryOptions.map(name => <option key={name} value={name} />)}</datalist></> : key === 'price' ? <MoneyInput required value={draft.price} onValueChange={value => setDraft(current => ({ ...current, price: value }))} className="mt-2 h-10 font-normal" /> : <Input required={key === 'name' || key === 'unitOfMeasure' || key === 'stockQuantity'} list={key === 'unitOfMeasure' && niche === 'CONSTRUCTION' ? 'construction-unit-options' : undefined} type={type ?? 'text'} step={step} min={type === 'number' ? '0' : undefined} value={draft[key]} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))} className="mt-2 h-10 font-normal" />}</label>)}{niche === 'CONSTRUCTION' && <datalist id="construction-unit-options">{['m²', 'm', 'kg', 'saco', 'un'].map(unit => <option key={unit} value={unit} />)}</datalist>}<NicheProductFields niche={niche} brand={draft.brand} attributes={draft.attributes} onBrandChange={brand => setDraft(current => ({ ...current, brand }))} onAttributesChange={attributes => setDraft(current => ({ ...current, attributes }))} /><label className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-sm sm:col-span-2"><input type="checkbox" checked={draft.sellByFraction} onChange={(event) => setDraft((current) => ({ ...current, sellByFraction: event.target.checked }))} className="h-4 w-4 accent-orange-600" /><span><span className="block font-medium">Permitir venda fracionada</span><span className="text-xs font-normal text-slate-500">Use para metros, peso, volume ou sacos fracionáveis.</span></span></label>{editingId && <label className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-sm sm:col-span-2"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft((current) => ({ ...current, isActive: event.target.checked }))} className="h-4 w-4 accent-orange-600" /><span className="font-medium">Produto ativo e disponível no PDV</span></label>}</div><div className="mt-6 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditorOpen(false)}>Cancelar</Button><Button type="submit" disabled={busy} className="bg-orange-600 hover:bg-orange-700">{busy && <LoaderCircle className="mr-2 animate-spin" size={16} />}Salvar produto</Button></div></form></section></div>}
     </main>
   );
 }

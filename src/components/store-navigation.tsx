@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import StoreShortcuts from './store-shortcuts';
 import { signOut } from 'next-auth/react';
 import { OperatorSwitch } from '@/components/operator-access';
 import { useEffect, useState } from 'react';
@@ -66,6 +67,7 @@ export default function StoreNavigation({ activePage, canManageStore }: StoreNav
         <button type="button" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="p-2 lg:hidden"><X size={20} /></button>
       </div>
       <nav aria-label="Navegação da loja" className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+        <StoreShortcuts collapsed={collapsed} onOpen={() => setMobileOpen(false)} />
         {navigationItems.filter(item => !item.managementOnly || canManageStore).map(({ href, label, page, icon: Icon }) => <Link key={page} href={href} title={label} aria-label={label} aria-current={page === activePage ? 'page' : undefined} onClick={() => setMobileOpen(false)} className={`flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-medium ${page === activePage ? 'bg-orange-50 text-orange-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
           <Icon aria-hidden="true" size={20} className="shrink-0" /><span className={collapsed ? 'lg:hidden' : ''}>{label}</span>
         </Link>)}

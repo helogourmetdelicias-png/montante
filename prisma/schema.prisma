@@ -166,6 +166,7 @@ model Product {
   stock_shelf      String?
   category         String?
   brand            String?
+  attributes       Json?
   is_active        Boolean  @default(true)
   created_at       DateTime @default(now())
   updated_at       DateTime @updatedAt

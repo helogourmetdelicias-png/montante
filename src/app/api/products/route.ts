@@ -1,6 +1,7 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
+import { getNicheAttributeKeys } from '@/lib/product-attributes';
 import { NextResponse } from 'next/server';
 import { createProductSchema } from '@/lib/validations/product';
 
@@ -23,6 +24,7 @@ function toProductResponse(product: {
   stock_shelf: string | null;
   category: string | null;
   brand: string | null;
+  attributes: Prisma.JsonValue;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -43,6 +45,7 @@ function toProductResponse(product: {
     stockShelf: product.stock_shelf,
     category: product.category,
     brand: product.brand,
+    attributes: product.attributes ?? {},
     isActive: product.is_active,
     createdAt: product.created_at,
     updatedAt: product.updated_at,
@@ -143,6 +146,14 @@ export async function POST(request: Request) {
   }
 
   const input = parsed.data;
+  if (input.attributes && Object.keys(input.attributes).length) {
+    const tenant = await prisma.tenant.findUnique({ where: { id: access.tenantId }, select: { niche: true } });
+    if (!tenant) return NextResponse.json({ error: 'Loja não encontrada.' }, { status: 404 });
+    const allowed = getNicheAttributeKeys(tenant.niche);
+    if (Object.keys(input.attributes).some(key => !allowed.includes(key as typeof allowed[number]))) {
+      return NextResponse.json({ error: 'Os campos específicos não correspondem ao nicho atual da loja. Recarregue o catálogo.' }, { status: 400 });
+    }
+  }
   const sku = cleanCode(input.sku);
   const barcode = cleanCode(input.barcode);
   const duplicateConditions = [
@@ -176,6 +187,7 @@ export async function POST(request: Request) {
       stock_shelf: cleanText(input.stockShelf),
       category: cleanText(input.category),
       brand: cleanText(input.brand),
+      ...(input.attributes !== undefined ? { attributes: input.attributes } : {}),
       is_active: input.isActive,
     },
   });

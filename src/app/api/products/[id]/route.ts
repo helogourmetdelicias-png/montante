@@ -1,6 +1,7 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
+import { getNicheAttributeKeys } from '@/lib/product-attributes';
 import { NextResponse } from 'next/server';
 import { updateProductSchema } from '@/lib/validations/product';
 
@@ -23,6 +24,7 @@ function toProductResponse(product: {
   stock_shelf: string | null;
   category: string | null;
   brand: string | null;
+  attributes: Prisma.JsonValue;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -43,6 +45,7 @@ function toProductResponse(product: {
     stockShelf: product.stock_shelf,
     category: product.category,
     brand: product.brand,
+    attributes: product.attributes ?? {},
     isActive: product.is_active,
     createdAt: product.created_at,
     updatedAt: product.updated_at,
@@ -88,6 +91,14 @@ export async function PATCH(request: Request, context: { params: { id: string } 
   if (!current) return NextResponse.json({ error: 'Produto não encontrado nesta loja.' }, { status: 404 });
 
   const input = parsed.data;
+  if (input.attributes && Object.keys(input.attributes).length) {
+    const tenant = await prisma.tenant.findUnique({ where: { id: access.tenantId }, select: { niche: true } });
+    if (!tenant) return NextResponse.json({ error: 'Loja não encontrada.' }, { status: 404 });
+    const allowed = getNicheAttributeKeys(tenant.niche);
+    if (Object.keys(input.attributes).some(key => !allowed.includes(key as typeof allowed[number]))) {
+      return NextResponse.json({ error: 'Os campos específicos não correspondem ao nicho atual da loja. Recarregue o catálogo.' }, { status: 400 });
+    }
+  }
   const resultingSellByFraction = input.sellByFraction ?? current.sell_by_fraction;
   const resultingStockQuantity = input.stockQuantity ?? Number(current.stock_quantity);
   if (!resultingSellByFraction && !Number.isInteger(resultingStockQuantity)) {
@@ -127,6 +138,10 @@ export async function PATCH(request: Request, context: { params: { id: string } 
       ...(input.stockShelf !== undefined ? { stock_shelf: cleanText(input.stockShelf) } : {}),
       ...(input.category !== undefined ? { category: cleanText(input.category) } : {}),
       ...(input.brand !== undefined ? { brand: cleanText(input.brand) } : {}),
+      ...(input.attributes !== undefined ? { attributes: {
+        ...(current.attributes && typeof current.attributes === 'object' && !Array.isArray(current.attributes) ? current.attributes : {}),
+        ...input.attributes,
+      } } : {}),
       ...(input.isActive !== undefined ? { is_active: input.isActive } : {}),
     },
   });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PRODUCT_GENDERS, PRODUCT_PACKAGING } from '../product-attributes';
 
 const money = z.number()
   .finite()
@@ -11,6 +12,22 @@ const quantity = z.number()
   .min(0)
   .max(9_999_999.999)
   .refine((value) => Math.abs(value * 1000 - Math.round(value * 1000)) < 0.000001, 'Use no máximo três casas decimais.');
+
+const optionalText = z.string().trim().max(120).nullable().optional();
+export const productAttributesSchema = z.object({
+  volume: optionalText,
+  expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
+    const date = new Date(`${value}T00:00:00Z`);
+    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, 'Data de validade inválida.').nullable().optional(),
+  lot: optionalText,
+  size: optionalText,
+  color: optionalText,
+  gender: z.enum(PRODUCT_GENDERS).nullable().optional(),
+  packaging: z.enum(PRODUCT_PACKAGING).nullable().optional(),
+  requiresContainer: z.boolean().optional(),
+  containerValue: money.nullable().optional(),
+}).strict();
 
 const productFields = {
   name: z.string().trim().min(2).max(120),
@@ -27,6 +44,7 @@ const productFields = {
   stockShelf: z.string().trim().max(80).nullable().optional(),
   category: z.string().trim().max(80).nullable().optional(),
   brand: z.string().trim().max(80).nullable().optional(),
+  attributes: productAttributesSchema.optional(),
   isActive: z.boolean().default(true),
 };
 
