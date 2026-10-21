@@ -5,9 +5,9 @@ import StoreShortcuts from './store-shortcuts';
 import { signOut } from 'next-auth/react';
 import { OperatorSwitch } from '@/components/operator-access';
 import { useEffect, useState } from 'react';
-import { BarChart3, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Package, Settings, ShoppingBag, UserCircle, Users, Wallet, X } from 'lucide-react';
+import { Bot, BarChart3, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Package, Settings, ShoppingBag, UserCircle, Users, Wallet, X } from 'lucide-react';
 
-type StorePage = 'credits' | 'pdv' | 'sales' | 'customers' | 'products' | 'cash' | 'reports' | 'settings' | 'payments' | 'subscription' | 'profile';
+type StorePage = 'ai' | 'credits' | 'pdv' | 'sales' | 'customers' | 'products' | 'cash' | 'reports' | 'settings' | 'payments' | 'subscription' | 'profile';
 
 type StoreNavigationProps = {
   activePage: StorePage;
@@ -23,6 +23,7 @@ const navigationItems: { href: string; label: string; page: StorePage; icon: typ
   { href: '/clientes', label: 'Clientes', page: 'customers', icon: Users, managementOnly: true },
   { href: '/perfil', label: 'Perfil', page: 'profile', icon: UserCircle },
   { href: '/relatorios', label: 'Relatórios', page: 'reports', icon: BarChart3, managementOnly: true },
+  { href: '/ia', label: 'IA Montante', page: 'ai', icon: Bot, managementOnly: true },
   { href: '/configuracoes/pagamentos', label: 'Configurações', page: 'settings', icon: Settings, managementOnly: true },
 ];
 
