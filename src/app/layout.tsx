@@ -5,8 +5,14 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Montante — Sistema para Material de Construção',
-  description: 'PDV e gestão para lojas de material de construção',
+  title: 'Montante PDV — Seu gestor comercial',
+  description: 'Sistema de ponto de venda e gestão comercial para sua loja.',
+  openGraph: {
+    title: 'Montante PDV — Seu gestor comercial',
+    description: 'Sistema de ponto de venda e gestão comercial para sua loja.',
+    locale: 'pt_BR',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({
