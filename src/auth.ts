@@ -23,14 +23,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.tenantId = (user as any).tenantId;
         token.role = (user as any).role;
         token.tenantSlug = (user as any).tenantSlug;
+        // Only the password provider returns this grant. PIN switching clears it.
+        token.isPlatformAdmin = (user as any).isPlatformAdmin === true;
       }
       // Middleware runs at the edge; protected pages and APIs revalidate in Node.js.
       if (token.id && process.env.NEXT_RUNTIME !== 'edge') {
-        const current = await prisma.user.findFirst({ where: { id: token.id as string, tenant_id: token.tenantId as string, is_active: true, tenant: { is_active: true } }, select: { role: true, name: true, email: true } });
+        const current = await prisma.user.findFirst({ where: { id: token.id as string, tenant_id: token.tenantId as string, is_active: true, tenant: { is_active: true } }, select: { role: true, name: true, email: true, is_platform_admin: true } });
         if (!current) return null;
         token.role = current.role;
         token.name = current.name;
         token.email = current.email;
+        token.isPlatformAdmin = token.isPlatformAdmin === true && current.is_platform_admin;
       }
       return token;
     },
@@ -40,6 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.tenantId = token.tenantId as string;
         session.user.role = token.role as string;
         session.user.tenantSlug = token.tenantSlug as string;
+        session.user.isPlatformAdmin = token.isPlatformAdmin === true;
       }
       return session;
     },
@@ -91,6 +95,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           tenantId: user.tenant_id,
           tenantSlug: tenant.slug,
           role: user.role,
+          isPlatformAdmin: user.is_platform_admin,
         };
       },
     }),

@@ -11,6 +11,7 @@ declare module 'next-auth' {
       tenantId: string;
       tenantSlug: string;
       role: string;
+      isPlatformAdmin?: boolean;
     };
   }
 }
@@ -21,5 +22,6 @@ declare module 'next-auth/jwt' {
     tenantId: string;
     tenantSlug: string;
     role: string;
+    isPlatformAdmin?: boolean;
   }
 }

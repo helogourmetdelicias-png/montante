@@ -101,6 +101,7 @@ model User {
   pin_failures   Int       @default(0)
   pin_locked_until DateTime?
   role           String    @default("staff")
+  is_platform_admin Boolean @default(false)
   avatar_url     String?
   phone          String?
   is_active      Boolean   @default(true)
