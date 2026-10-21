@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
 import { auth } from '@/auth';
+import { brandKey } from '@/lib/brand-commission';
 import { runSerializableTransaction } from '@/lib/database/transactions';
 import { prisma } from '@/lib/prisma';
 import { releaseExpiredSales } from '@/lib/sales/reservations';
@@ -145,12 +146,14 @@ export async function POST(request: Request) {
       const productIds = items.map((item) => item.productId);
       const products = await tx.product.findMany({
         where: { tenant_id: tenantId, id: { in: productIds }, is_active: true },
-        select: { id: true, price: true, stock_quantity: true, sell_by_fraction: true },
+        select: { id: true, price: true, stock_quantity: true, sell_by_fraction: true, brand: true, category: true },
       });
       const productsById = new Map(products.map((product) => [product.id, product]));
       if (products.length !== items.length) throw new SaleInputError('Um ou mais produtos não existem ou estão inativos nesta loja.', 404);
 
-      const saleItems: Array<{ product_id: string; quantity: Prisma.Decimal; unit_price: Prisma.Decimal; total_price: Prisma.Decimal }> = [];
+      const rules = await tx.brandCommission.findMany({ where: { tenant_id: tenantId } });
+      const rates = new Map(rules.map(rule => [rule.brand_key, rule.rate]));
+      const saleItems: Array<{ product_id: string; quantity: Prisma.Decimal; unit_price: Prisma.Decimal; total_price: Prisma.Decimal; catalog_snapshot: boolean; brand_snapshot: string | null; category_snapshot: string | null; commission_rate: Prisma.Decimal | null }> = [];
       let totalAmount = new Prisma.Decimal(input.mode === 'quick' ? input.quickAmount! : 0);
       for (const item of items) {
         const product = productsById.get(item.productId)!;
@@ -163,6 +166,8 @@ export async function POST(request: Request) {
         totalAmount = totalAmount.plus(lineTotal);
         saleItems.push({
           product_id: product.id,
+          catalog_snapshot: true, brand_snapshot: product.brand, category_snapshot: product.category,
+          commission_rate: product.brand ? rates.get(brandKey(product.brand)) ?? null : null,
           quantity,
           unit_price: product.price,
           total_price: lineTotal,

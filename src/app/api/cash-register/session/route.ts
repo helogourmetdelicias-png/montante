@@ -62,6 +62,7 @@ export async function GET() {
       })),
       totals: {
         cashSales: totals.cashSales.toFixed(2),
+        cashCreditReceipts: totals.cashCreditReceipts.toFixed(2),
         supplies: totals.supplies.toFixed(2),
         withdrawals: totals.withdrawals.toFixed(2),
       },

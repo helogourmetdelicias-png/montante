@@ -7,7 +7,7 @@ import { OperatorSwitch } from '@/components/operator-access';
 import { useEffect, useState } from 'react';
 import { BarChart3, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Package, Settings, ShoppingBag, UserCircle, Users, Wallet, X } from 'lucide-react';
 
-type StorePage = 'pdv' | 'sales' | 'customers' | 'products' | 'cash' | 'reports' | 'settings' | 'payments' | 'subscription' | 'profile';
+type StorePage = 'credits' | 'pdv' | 'sales' | 'customers' | 'products' | 'cash' | 'reports' | 'settings' | 'payments' | 'subscription' | 'profile';
 
 type StoreNavigationProps = {
   activePage: StorePage;
@@ -17,6 +17,7 @@ type StoreNavigationProps = {
 const navigationItems: { href: string; label: string; page: StorePage; icon: typeof ShoppingBag; managementOnly?: boolean }[] = [
   { href: '/pdv', label: 'PDV', page: 'pdv', icon: ShoppingBag },
   { href: '/vendas', label: 'Vendas', page: 'sales', icon: ShoppingBag },
+  { href: '/fiados', label: 'Fiados', page: 'credits', icon: Wallet },
   { href: '/caixa', label: 'Caixa', page: 'cash', icon: Wallet },
   { href: '/produtos', label: 'Produtos', page: 'products', icon: Package, managementOnly: true },
   { href: '/clientes', label: 'Clientes', page: 'customers', icon: Users, managementOnly: true },

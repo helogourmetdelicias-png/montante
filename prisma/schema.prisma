@@ -82,6 +82,9 @@ model Tenant {
   payment_terminals       PaymentTerminal[]
   subscription            TenantSubscription?
   billing_records         BillingRecord[]
+  credit_sales            CreditSale[]
+  credit_payments         CreditPayment[]
+  brand_commissions       BrandCommission[]
   cash_register_sessions  CashRegisterSession[]
   cash_register_movements CashRegisterMovement[]
 }
@@ -93,6 +96,7 @@ model User {
   email          String
   email_verified DateTime?
   password_hash  String?
+  credit_payments CreditPayment[]
   pin_hash       String?
   pin_failures   Int       @default(0)
   pin_locked_until DateTime?
@@ -220,6 +224,7 @@ model Customer {
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   sales  Sale[]
+  credit_sales CreditSale[]
 
   @@unique([id, tenant_id])
   @@unique([tenant_id, document])
@@ -249,6 +254,7 @@ model Sale {
 
   tenant                Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   customer              Customer?            @relation(fields: [customer_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
+  credit                CreditSale?
   items                 SaleItem[]
   payment_attempts      PaymentAttempt[]
   cash_register_session CashRegisterSession? @relation(fields: [cash_register_session_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
@@ -281,6 +287,7 @@ model CashRegisterSession {
   user      User                   @relation(fields: [user_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
   sales     Sale[]
   movements CashRegisterMovement[]
+  credit_payments CreditPayment[]
 
   @@unique([id, tenant_id])
   @@index([tenant_id, user_id, status, opened_at])
@@ -329,6 +336,10 @@ model SaleItem {
   id          String  @id @default(cuid())
   sale_id     String
   product_id  String
+  catalog_snapshot Boolean @default(false)
+  brand_snapshot String?
+  category_snapshot String?
+  commission_rate Decimal? @db.Decimal(5, 2)
   quantity    Decimal @db.Decimal(10, 3)
   unit_price  Decimal @db.Decimal(10, 2)
   total_price Decimal @db.Decimal(10, 2)
@@ -413,4 +424,49 @@ model BillingRecord {
 
   @@unique([tenant_id, reference_month])
   @@index([tenant_id])
+}
+
+model CreditSale {
+  id String @id @default(cuid())
+  tenant_id String
+  sale_id String @unique
+  customer_id String
+  amount Decimal @db.Decimal(10, 2)
+  created_at DateTime @default(now())
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sale Sale @relation(fields: [sale_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
+  customer Customer @relation(fields: [customer_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
+  payments CreditPayment[]
+  @@unique([sale_id, tenant_id])
+  @@unique([id, tenant_id])
+  @@index([tenant_id, customer_id, created_at])
+}
+
+model CreditPayment {
+  id String @id @default(cuid())
+  tenant_id String
+  credit_sale_id String
+  user_id String
+  session_id String
+  method PaymentMethod
+  amount Decimal @db.Decimal(10, 2)
+  idempotency_key String
+  created_at DateTime @default(now())
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  credit CreditSale @relation(fields: [credit_sale_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
+  user User @relation(fields: [user_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
+  session CashRegisterSession @relation(fields: [session_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
+  @@unique([tenant_id, idempotency_key])
+  @@index([tenant_id, credit_sale_id, created_at])
+  @@index([tenant_id, session_id, method])
+}
+
+model BrandCommission {
+  id String @id @default(cuid())
+  tenant_id String
+  brand String
+  brand_key String
+  rate Decimal @db.Decimal(5, 2)
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  @@unique([tenant_id, brand_key])
 }

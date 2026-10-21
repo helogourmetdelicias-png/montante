@@ -138,12 +138,12 @@ export async function POST(request: Request, context: { params: { id: string } }
         amount: remainingAmount,
         idempotency_key: input.idempotencyKey,
       };
-    attempt = input.provider === 'pagbank' ? await runSerializableTransaction(async tx => {
+    attempt = await runSerializableTransaction(async tx => {
       const available = await tx.sale.findFirst({ where: { id: sale.id, tenant_id: tenantId, status: 'pending', OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }] }, select: { id: true } });
       const pending = await tx.paymentAttempt.findFirst({ where: { tenant_id: tenantId, sale_id: sale.id, status: { in: ['CREATED', 'PENDING', 'APPROVED'] } }, select: { id: true } });
-      if (!available || pending) throw new Error('PAGBANK_ATTEMPT_CONFLICT');
+      if (!available || (input.provider === 'pagbank' && pending)) throw new Error('PAGBANK_ATTEMPT_CONFLICT');
       return tx.paymentAttempt.create({ data: createData });
-    }) : await prisma.paymentAttempt.create({ data: createData });
+    });
   } catch (error) {
     if (error instanceof Error && error.message === 'PAGBANK_ATTEMPT_CONFLICT') return NextResponse.json({ error: 'A venda já tem uma cobrança em andamento ou não está mais disponível.' }, { status: 409 });
     if ((error as { code?: string }).code === 'P2002') {

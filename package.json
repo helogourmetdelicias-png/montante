@@ -17,6 +17,7 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "test:catalog-excel:db": "node --env-file=.env tests/catalog-excel.database.cjs",
+    "test:credit-reports:db": "node --env-file=.env tests/credit-reports.database.cjs",
     "test:product-niche:db": "node --env-file=.env tests/product-niche.database.cjs",
     "test:pagbank:db": "node --env-file=.env tests/pagbank.database.cjs"
   },

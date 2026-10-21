@@ -8,13 +8,14 @@ import CustomerPicker, { type SaleCustomer } from './customer-picker';
 
 type Props = {
   selected: SaleCustomer | null;
+  requireCustomer?: boolean;
   canCreate: boolean;
   onContinue: (customer: SaleCustomer | null) => void;
   onBack: () => void;
 };
 
 /** Identifies the customer after choosing products and before creating a sale. */
-export default function CustomerCheckout({ selected, canCreate, onContinue, onBack }: Props) {
+export default function CustomerCheckout({ selected, requireCustomer = false, canCreate, onContinue, onBack }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [choice, setChoice] = useState<'choose' | 'create'>('choose');
   const [customer, setCustomer] = useState(selected);
@@ -41,13 +42,13 @@ export default function CustomerCheckout({ selected, canCreate, onContinue, onBa
 
   return <dialog ref={dialog} aria-labelledby="checkout-customer-title" onCancel={event => { event.preventDefault(); if (!busy) onBack(); }} className="m-auto max-h-[90dvh] w-[min(95vw,680px)] overflow-y-auto rounded-2xl border bg-white p-5 text-slate-900 shadow-2xl backdrop:bg-slate-950/50">
     <h2 id="checkout-customer-title" className="text-xl font-semibold">Quem é o cliente desta venda?</h2>
-    <p className="mt-2 text-sm text-slate-500">Os produtos já estão selecionados. Identifique o cliente ou siga sem identificação.</p>
+    <p className="mt-2 text-sm text-slate-500">{requireCustomer ? 'Fiado exige um cliente identificado. Escolha ou cadastre o cliente.' : 'Os produtos já estão selecionados. Identifique o cliente ou siga sem identificação.'}</p>
     <div className="my-5 grid gap-3 sm:grid-cols-3">
       <Button type="button" variant={choice === 'choose' ? 'default' : 'outline'} disabled={busy} onClick={() => { setChoice('choose'); setError(''); }} className="h-auto min-h-16 whitespace-normal"><Users size={18} className="mr-2 shrink-0" />Escolher cliente</Button>
-      <Button type="button" variant="outline" disabled={busy} onClick={() => onContinue(null)} className="h-auto min-h-16 whitespace-normal"><UserRound size={18} className="mr-2 shrink-0" />Vender sem cliente</Button>
+      {!requireCustomer && <Button type="button" variant="outline" disabled={busy} onClick={() => onContinue(null)} className="h-auto min-h-16 whitespace-normal"><UserRound size={18} className="mr-2 shrink-0" />Vender sem cliente</Button>}
       {canCreate && <Button type="button" variant={choice === 'create' ? 'default' : 'outline'} disabled={busy} onClick={() => { setChoice('create'); setError(''); }} className="h-auto min-h-16 whitespace-normal"><UserPlus size={18} className="mr-2 shrink-0" />Cadastrar novo cliente</Button>}
     </div>
-    {choice === 'choose' ? <><CustomerPicker selected={customer} disabled={busy} onSelect={setCustomer} /><div className="mt-5 flex flex-wrap justify-between gap-3"><Button type="button" variant="outline" onClick={onBack}>Voltar aos produtos</Button><Button type="button" disabled={!customer} onClick={() => onContinue(customer)}>Continuar com este cliente</Button></div></> : <form onSubmit={create} className="space-y-4"><p className="text-sm text-slate-500">Somente o nome é obrigatório. O cliente será cadastrado e vinculado à venda.</p><fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
+    {choice === 'choose' ? <><CustomerPicker label={requireCustomer ? 'Cliente (obrigatório)' : undefined} selected={customer} disabled={busy} onSelect={setCustomer} /><div className="mt-5 flex flex-wrap justify-between gap-3"><Button type="button" variant="outline" onClick={onBack}>Voltar aos produtos</Button><Button type="button" disabled={!customer} onClick={() => onContinue(customer)}>Continuar com este cliente</Button></div></> : <form onSubmit={create} className="space-y-4"><p className="text-sm text-slate-500">Somente o nome é obrigatório. O cliente será cadastrado e vinculado à venda.</p><fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
       <label className="text-sm sm:col-span-2">Nome / razão social<Input name="name" required minLength={2} maxLength={120} autoComplete="name" className="mt-1" /></label>
       <label className="text-sm">CPF/CNPJ (opcional)<Input name="document" maxLength={20} inputMode="numeric" className="mt-1" /></label>
       <label className="text-sm">Telefone com DDD (opcional)<Input name="phone" type="tel" maxLength={30} autoComplete="tel" className="mt-1" /></label>

@@ -16,7 +16,7 @@ type Register = {
   openedAt: string;
   needsClosing: boolean;
   movements: Movement[];
-  totals: { cashSales: string; supplies: string; withdrawals: string };
+  totals: { cashSales: string; cashCreditReceipts: string; supplies: string; withdrawals: string };
 };
 type PreviousClosing = { expectedAmount: string; declaredAmount: string; differenceAmount: string; closedAt: string | null };
 type CloseSummary = { expectedAmount: string; declaredAmount: string; differenceAmount: string };
@@ -123,7 +123,7 @@ export default function CashRegisterPage({ operatorName, canManageStore }: { ope
         {register?.needsClosing && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Este caixa pertence a um dia anterior. Finalize ou cancele as vendas pendentes, confira o dinheiro e feche o turno antes de abrir o caixa de hoje.</div>}
         {register ? <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[['Fundo inicial', register.initialAmount], ['Vendas em dinheiro', register.totals.cashSales], ['Suprimentos', register.totals.supplies], ['Esperado na gaveta', register.expectedAmount]].map(([label, value]) => <article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{formatMoney(value)}</p></article>)}
+            {[['Fundo inicial', register.initialAmount], ['Vendas em dinheiro', register.totals.cashSales], ['Fiados recebidos em dinheiro', register.totals.cashCreditReceipts], ['Suprimentos', register.totals.supplies], ['Esperado na gaveta', register.expectedAmount]].map(([label, value]) => <article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{formatMoney(value)}</p></article>)}
           </section>
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-4 flex items-center justify-between"><div><h2 className="font-semibold">Movimentações do turno</h2><p className="text-sm text-slate-500">Abertura em {new Date(register.openedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p></div><Wallet className="text-orange-600" /></div>

@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 
 test('drawer expected total includes float, approved cash, supply, and withdrawal once', async () => {
   const db = {
+    creditPayment: { async aggregate({ where }) { assert.equal(where.tenant_id, 'tenant-a'); assert.equal(where.session_id, 'register-a'); assert.equal(where.method, 'CASH'); return { _sum: { amount: new Prisma.Decimal('7.00') } }; } },
     paymentAttempt: {
       async aggregate({ where }) {
         assert.equal(where.tenant_id, 'tenant-a');
@@ -25,11 +26,12 @@ test('drawer expected total includes float, approved cash, supply, and withdrawa
     },
   };
   const summary = await getCashRegisterSummary(db, 'tenant-a', 'register-a');
-  assert.equal(expectedDrawerAmount(new Prisma.Decimal('20.00'), summary).toFixed(2), '55.50');
+  assert.equal(expectedDrawerAmount(new Prisma.Decimal('20.00'), summary).toFixed(2), '62.50');
 });
 
 test('empty cash activity does not lose initial float', async () => {
   const db = {
+    creditPayment: { async aggregate() { return { _sum: { amount: null } }; } },
     paymentAttempt: { async aggregate() { return { _sum: { amount: null } }; } },
     cashRegisterMovement: { async groupBy() { return []; } },
   };

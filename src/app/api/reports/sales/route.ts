@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+import { salesDetails } from '@/lib/reports/details';
 import { parsePeriod } from '@/lib/reports/period';
 
 /** Management report API only exposes rows belonging to the authenticated tenant. */
@@ -91,6 +92,7 @@ export async function GET(request: Request) {
     amount: (group._sum.amount ?? new Prisma.Decimal(0)).toFixed(2),
   }));
   return NextResponse.json({
+    details: await salesDetails(tenantId, period.startAt, period.endBefore),
     storeName: tenant?.name ?? 'Montante',
     period: { startDate: period.startDate, endDate: period.endDate },
     summary: {

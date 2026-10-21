@@ -51,7 +51,7 @@ export async function GET() {
     ['owner', 'admin'].includes(session.user.role);
 
   return NextResponse.json({
-    options: [...methods, cashOption, ...(splitOption ? [splitOption] : []), ...terminalMethods],
+    options: [...methods, cashOption, { provider: 'fiado', label: 'Fiado', method: 'fiado', channel: 'in_person' }, ...(splitOption ? [splitOption] : []), ...terminalMethods],
     canSimulatePixApproval,
     cashRegister: openRegister ? { isOpen: isCurrentBusinessDay(openRegister.opened_at), needsClosing: !isCurrentBusinessDay(openRegister.opened_at), openedAt: openRegister.opened_at } : { isOpen: false, needsClosing: false },
   });
