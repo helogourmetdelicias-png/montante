@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "test": "node --experimental-strip-types --test tests/sales-reservations.test.mjs tests/mercado-pago-cancel.test.mjs tests/mercadopago-webhook.test.mjs tests/cron-auth.test.mjs tests/cash-register.test.mjs tests/pagarme-pix.test.mjs tests/pagbank-pix.test.mjs tests/customers.test.mjs tests/report-sharing.test.mjs tests/billing.test.mjs tests/quick-sales.test.mjs tests/business-day.test.mjs tests/catalog-excel.test.cjs tests/product-niche.test.cjs tests/platform-admin-auth.test.cjs tests/ai.test.cjs",
+    "test": "node --experimental-strip-types --test tests/sales-reservations.test.mjs tests/mercado-pago-cancel.test.mjs tests/mercadopago-webhook.test.mjs tests/cron-auth.test.mjs tests/cash-register.test.mjs tests/pagarme-pix.test.mjs tests/pagbank-pix.test.mjs tests/customers.test.mjs tests/report-sharing.test.mjs tests/billing.test.mjs tests/quick-sales.test.mjs tests/business-day.test.mjs tests/catalog-excel.test.cjs tests/product-niche.test.cjs tests/platform-admin-auth.test.cjs tests/ai.test.cjs tests/saved-login-accounts.test.cjs",
     "test:ai": "node --experimental-strip-types --test tests/ai.test.cjs",
     "test:ai:db": "node --env-file=.env tests/ai.database.cjs",
     "test:reservations:db": "node --env-file=.env --experimental-strip-types tests/sales-reservations.database.mjs",
