@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { decryptCredentials, encryptCredentials } from '@/lib/encryption';
 import { PAYMENT_PROVIDER_CATALOG } from '@/lib/payment/provider-catalog';
 import { getPaymentSettingsAccess } from '@/lib/payment/settings-auth';
+import { ManualPixConfigurationError, resolveManualPixConfig } from '@/lib/payment/pix-manual';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -91,9 +92,10 @@ export async function POST(request: Request) {
   if (input.provider === 'pagbank' && currentConfig && currentConfig.environment !== input.environment && await prisma.paymentAttempt.count({ where: { tenant_id: access.tenantId, gateway_config_id: currentConfig.id, status: { in: ['CREATED', 'PENDING'] } } })) {
     return NextResponse.json({ error: 'Concilie as cobranças PagBank pendentes antes de trocar o ambiente.' }, { status: 409 });
   }
-  if (!effectiveCredentials && currentConfig?.encrypted_credentials) {
+  if ((!effectiveCredentials || input.provider === 'pix_manual') && currentConfig?.encrypted_credentials) {
     try {
-      effectiveCredentials = decryptCredentials(currentConfig.encrypted_credentials) as Record<string, string>;
+      const savedCredentials = decryptCredentials(currentConfig.encrypted_credentials) as Record<string, string>;
+      effectiveCredentials = input.provider === 'pix_manual' ? { ...savedCredentials, ...input.credentials } : savedCredentials;
     } catch {
       return NextResponse.json({ error: 'Não foi possível validar a credencial já salva. Informe-a novamente.' }, { status: 409 });
     }
@@ -114,14 +116,22 @@ export async function POST(request: Request) {
   if (input.isActive && input.provider === 'pagbank' && !effectiveCredentials?.token?.trim()) {
     return NextResponse.json({ error: 'Informe o token da API de Pedidos PagBank correspondente ao ambiente selecionado.' }, { status: 400 });
   }
-  if (input.isActive && input.provider === 'pix_manual' && !effectiveCredentials?.pix_key?.trim()) {
-    return NextResponse.json({ error: 'Informe a chave Pix da loja.' }, { status: 400 });
+  if (input.isActive && input.provider === 'pix_manual') {
+    try {
+      const tenant = await prisma.tenant.findUnique({ where: { id: access.tenantId }, select: { name: true, address_city: true } });
+      const manual = resolveManualPixConfig(effectiveCredentials ?? {}, tenant ?? undefined);
+      effectiveCredentials = { pix_key: manual.pixKey, pix_key_type: manual.pixKeyType, merchant_name: manual.merchantName, merchant_city: manual.merchantCity };
+    } catch (error) {
+      if (error instanceof ManualPixConfigurationError) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: 'Não foi possível validar os dados do recebedor Pix.' }, { status: 503 });
+    }
   }
 
   let encryptedCredentials: string | undefined;
-  if (input.credentials) {
+  const credentialsToSave = input.provider === 'pix_manual' ? effectiveCredentials : input.credentials;
+  if (credentialsToSave) {
     try {
-      encryptedCredentials = encryptCredentials(input.credentials);
+      encryptedCredentials = encryptCredentials(credentialsToSave);
     } catch {
       console.error('Payment credential encryption is unavailable; check ENCRYPTION_KEY.');
       return NextResponse.json({ error: 'A chave de proteção das credenciais está ausente ou inválida. Configure ENCRYPTION_KEY e reinicie o servidor.' }, { status: 503 });

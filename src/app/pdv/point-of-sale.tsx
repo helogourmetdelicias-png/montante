@@ -9,6 +9,7 @@ import StoreNavigation from '@/components/store-navigation';
 import BusinessDate from '@/components/business-date';
 import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
 import ReceiptPreview from './receipt-preview';
+import PixPaymentDetails from './pix-payment-details';
 import type { SaleCustomer } from './customer-picker';
 import CustomerCheckout from './customer-checkout';
 import { calculateCashChangeCents } from '@/lib/sales/cash-payment';
@@ -639,8 +640,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
           {awaitingPayment && <div className="space-y-3 px-5 pb-5">
             <div className="rounded-xl border border-orange-100 bg-orange-50 p-4 text-center"><p className="font-semibold text-orange-900">Aguardando pagamento</p><p className="mt-1 text-sm text-orange-800">{selectedPayment?.provider === 'split' ? 'Pix + dinheiro' : `${selectedPayment?.label} · ${selectedPayment?.method === 'pix' ? 'Pix' : 'Cartão'}`}</p>
               {selectedPayment?.provider === 'split' && cashApplied !== null && <div className="my-3 rounded-lg bg-white p-3 text-left text-sm"><div className="flex justify-between"><span>Parcela paga em dinheiro</span><strong>{money(cashApplied / 100)}</strong></div><div className="mt-1 flex justify-between"><span>Troco em dinheiro</span><strong>{money((cashChange ?? 0) / 100)}</strong></div><div className="mt-1 flex justify-between"><span>Restante no Pix</span><strong>{money(Number(paymentAmount))}</strong></div></div>}
-              {(payment?.pixQrCode || payment?.pixQrCodeUrl) && <img src={payment.pixQrCode ? `data:image/png;base64,${payment.pixQrCode}` : payment.pixQrCodeUrl} alt="QR Code Pix para pagamento" className="mx-auto my-4 h-48 w-48 rounded-lg bg-white p-2" />}
-              {payment?.pixCopyPaste && <div className="mt-3 text-left"><label htmlFor="pix-copy" className="text-xs font-medium text-orange-900">Chave ou código Pix</label><textarea id="pix-copy" readOnly value={payment.pixCopyPaste} className="mt-1 min-h-16 w-full resize-none rounded-lg border border-orange-200 bg-white p-2 text-xs text-slate-700" /></div>}
+              {payment && <PixPaymentDetails payment={payment} amount={paymentAmount} manual={selectedPayment?.provider === 'pix_manual'} />}
               {payment?.paymentUrl && <a href={payment.paymentUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-semibold text-orange-800 underline">Abrir pagamento</a>}
               {!payment && <p className="mt-2 text-sm text-orange-800">Confirme o recebimento no provedor ou na maquininha.</p>}
             </div>

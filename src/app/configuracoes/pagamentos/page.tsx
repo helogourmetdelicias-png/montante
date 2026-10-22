@@ -46,7 +46,11 @@ const credentialFields: Record<string, { name: string; label: string; hint: stri
     { name: 'client_id', label: 'Client ID', hint: 'Informe somente quando receber as credenciais oficiais da integração.' },
     { name: 'client_secret', label: 'Client Secret', hint: 'A integração ainda não inicia cobranças.' },
   ],
-  pix_manual: [{ name: 'pix_key', label: 'Chave Pix da loja', hint: 'Essa opção não confirma o pagamento automaticamente.' }],
+  pix_manual: [
+    { name: 'pix_key', label: 'Chave Pix da loja', hint: 'Use a chave cadastrada no banco. Para telefone, informe DDD e número; o sistema acrescenta +55 para números brasileiros.' },
+    { name: 'merchant_name', label: 'Nome do recebedor', hint: 'Nome do titular da conta. Se ainda não houver um nome salvo aqui, será usado o nome da loja.' },
+    { name: 'merchant_city', label: 'Cidade do recebedor', hint: 'Ex.: São Paulo. Necessária para gerar o QR Code; pode ser preenchida a partir do endereço da loja.' },
+  ],
 };
 
 const methodNames: Record<string, string> = { pix: 'Pix', credit_card: 'Crédito', debit_card: 'Débito' };
@@ -242,13 +246,14 @@ export default function PaymentSettingsPage() {
 
             {fields.length > 0 && <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold"><LockKeyhole className="h-4 w-4" /> Credenciais protegidas</div>
+              {selected.id === 'pix_manual' && <div className="space-y-1.5"><Label htmlFor="pix-key-type">Tipo da chave Pix</Label><select id="pix-key-type" value={credentials.pix_key_type ?? ''} onChange={event => setCredentials(current => ({ ...current, pix_key_type: event.target.value }))} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="">{currentConfig?.credentialsConfigured ? 'Manter tipo salvo ou selecionar' : 'Selecione o tipo da chave'}</option><option value="telefone">Telefone</option><option value="cpf">CPF</option><option value="cnpj">CNPJ</option><option value="email">E-mail</option><option value="aleatoria">Chave aleatória</option></select><p className="text-xs text-muted-foreground">Selecione o tipo ao cadastrar ou substituir a chave, especialmente para telefone e CPF.</p></div>}
               {currentConfig?.credentialsConfigured && <p className="text-xs text-muted-foreground">Já existe uma credencial salva. Deixe em branco para mantê-la; o valor nunca é exibido nesta tela.</p>}
               {fields.map((field) => <div key={field.name} className="space-y-1.5"><Label htmlFor={`credential-${field.name}`}>{field.label}</Label><Input id={`credential-${field.name}`} type={field.name.toLowerCase().includes('secret') || field.name.includes('token') || field.name.includes('key') ? 'password' : 'text'} autoComplete="new-password" value={credentials[field.name] ?? ''} onChange={(event) => setCredentials((current) => ({ ...current, [field.name]: event.target.value }))} placeholder={currentConfig?.credentialsConfigured ? 'Credencial salva · digite somente para substituir' : 'Cole a credencial aqui'} /><p className="text-xs text-muted-foreground">{field.hint}</p></div>)}
             </div>}
 
             {selected.state === 'planned' && <div className="flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><p>Você pode preparar os dados, mas este provedor não pode ser ativado para cobranças até a integração ser implementada e homologada.</p></div>}
 
-            {selected.id === 'pix_manual' && <div className="flex gap-3 rounded-lg border p-4 text-sm text-muted-foreground"><CircleHelp className="mt-0.5 h-4 w-4 shrink-0" /><p>O Pix manual exibe a chave informada, mas não verifica automaticamente se o cliente pagou.</p></div>}
+            {selected.id === 'pix_manual' && <div className="flex gap-3 rounded-lg border p-4 text-sm text-muted-foreground"><CircleHelp className="mt-0.5 h-4 w-4 shrink-0" /><p>O cliente escaneia o QR Code ou usa o Pix Copia e Cola com o valor da venda. Confira o dinheiro na conta antes de confirmar o recebimento. A chave deve estar cadastrada no banco; o sistema não consulta sua titularidade. O QR Code permite pagamento real mesmo se a configuração estiver marcada como Sandbox.</p></div>}
 
             <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
               <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} disabled={selected.state === 'planned'} className="h-4 w-4 accent-primary" /><span><strong className="block">Ativar este provedor</strong><span className="text-xs text-muted-foreground">Provedores em preparação não podem ser ativados.</span></span></label>

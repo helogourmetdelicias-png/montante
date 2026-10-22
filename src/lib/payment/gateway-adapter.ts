@@ -58,25 +58,33 @@ export class PixManualGateway implements PaymentGateway {
   readonly provider: PaymentProvider = 'pix_manual';
   private readonly pixKey: string;
   private readonly pixKeyType: string;
+  private readonly merchantName: string;
+  private readonly merchantCity: string;
 
   constructor(
     pixKey: string,
-    pixKeyType: string
+    pixKeyType: string,
+    merchantName = '',
+    merchantCity = ''
   ) {
     this.pixKey = pixKey;
     this.pixKeyType = pixKeyType;
+    this.merchantName = merchantName;
+    this.merchantCity = merchantCity;
   }
 
   async charge(request: ChargeRequest): Promise<ChargeResponse> {
     if (request.method !== 'pix' || request.channel !== 'online') {
       throw new Error('Pix manual suporta somente pagamentos Pix online.');
     }
+    const { resolveManualPixConfig, createManualPixPayment } = await import('./pix-manual');
+    const config = resolveManualPixConfig({ pix_key: this.pixKey, pix_key_type: this.pixKeyType, merchant_name: this.merchantName, merchant_city: this.merchantCity });
     return {
       provider: 'pix_manual',
       method: 'pix',
       channel: 'online',
       status: 'pending',
-      pixCopyPaste: this.pixKey,
+      ...await createManualPixPayment(config, request.amount, request.idempotencyKey),
     };
   }
 
@@ -456,13 +464,15 @@ export class ExternalTerminalGateway implements PaymentGateway {
 export function getPaymentGateway(
   provider: PaymentProvider,
   credentials: Record<string, unknown>,
-  publicData?: { pixKey?: string; pixKeyType?: string; environment?: string }
+  publicData?: { pixKey?: string; pixKeyType?: string; merchantName?: string; merchantCity?: string; environment?: string }
 ): PaymentGateway {
   switch (provider) {
     case 'pix_manual':
       return new PixManualGateway(
         publicData?.pixKey ?? '',
-        publicData?.pixKeyType ?? 'aleatoria'
+        publicData?.pixKeyType ?? '',
+        publicData?.merchantName,
+        publicData?.merchantCity
       );
     case 'mercadopago':
       return new MercadoPagoGateway(credentials.access_token as string);

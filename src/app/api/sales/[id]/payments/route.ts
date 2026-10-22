@@ -7,6 +7,7 @@ import { runSerializableTransaction } from '@/lib/database/transactions';
 import { applyPaymentResult } from '@/lib/sales/payment-result';
 import { createPaymentAttemptSchema } from '@/lib/validations/payment-attempt';
 import { PaymentAttemptStatus, Prisma } from '@prisma/client';
+import { ManualPixConfigurationError, resolveManualPixConfig, type ManualPixConfig } from '@/lib/payment/pix-manual';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -119,8 +120,18 @@ export async function POST(request: Request, context: { params: { id: string } }
     }
   }
   const pixKey = input.provider === 'pix_manual' ? credentials.pix_key : undefined;
+  let manualPix: ManualPixConfig | undefined;
+  if (input.provider === 'pix_manual') {
+    try {
+      const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, address_city: true } });
+      manualPix = resolveManualPixConfig(credentials, tenant ?? undefined);
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof ManualPixConfigurationError ? error.message : 'Não foi possível preparar o QR Code Pix. Confira as configurações de pagamentos.' }, { status: 409 });
+    }
+  }
   const gateway = getPaymentGateway(input.provider as PaymentProvider, credentials, {
     pixKey: typeof pixKey === 'string' ? pixKey : undefined,
+    ...manualPix,
     environment: configuration?.environment,
   });
 
