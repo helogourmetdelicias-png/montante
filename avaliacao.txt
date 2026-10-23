@@ -346,5 +346,8 @@ Todas são tecnicamente possíveis. As próximas prioridades recomendadas são t
 - Verificação TypeScript passou após a correção do login.
 - Lint passou com avisos existentes de hooks e imagem.
 - Compilação de produção concluída com sucesso, incluindo geração das páginas e validação dos tipos das rotas.
-- Não foram executadas vendas reais ou testes de pagamento com provedores. Publicação e conferência visual autenticada no ambiente de homologação continuam separadas desta revisão.
+- Não foram executadas vendas reais ou testes de pagamento com provedores. Publicação confirmada em produção; conferência visual autenticada e homologação real dos provedores continuam pendentes.
 
+## Publicação confirmada — 23/10/2026
+
+Entrega de código `1a1d11b` publicada com sucesso no projeto Vercel `montante-um2r`. Endereço: https://montante-um2r-seven.vercel.app. Login/cadastro responderam HTTP 200 e Caixa/PDV mantiveram redirecionamento ao login sem sessão. Suíte completa repetida: 73 testes aprovados. Os itens listados como próxima etapa continuam não implementados. O projeto secundário `montante` falhou, sem impedir a publicação do endereço principal; diagnóstico dele permanece pendente. Nenhuma venda real foi criada ou encerrada durante a verificação.

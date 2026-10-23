@@ -336,7 +336,7 @@ Esta atualização substitui, para o estado atual, as observações históricas 
 - [x] Preservadas as correções anteriores da auditoria: cancelamento/reconciliação Pagar.me, dados de comprador no pagamento misto, proteção administrativa e configuração de lint.
 - [x] Validações anteriores: 73 casos distintos aprovados, compilação de produção e lint aprovados (avisos preexistentes). Sem migração, exclusão das vendas #19/#20 ou pagamentos reais.
 - [x] Feedback original preservado em avaliacao.txt e complementado com o estado de cada sugestão; referência organizada em docs/avaliacao-melhorias.md.
-- [ ] Publicar esta entrega e verificar o deploy de produção.
+- [x] Entrega publicada no commit `1a1d11b`; Vercel `montante-um2r` confirmou “Deployment has completed” em 23/10/2026. Login e cadastro responderam HTTP 200; Caixa e PDV redirecionaram ao login sem sessão. Suíte completa repetida: 73/73 testes aprovados.
 - [ ] Conferência visual autenticada do Caixa e PDV; validar no balcão sem criar vendas fictícias em produção.
 - [ ] Treinamento isolado, estorno auditável e reset de demonstração.
 - [ ] Ampliar pagamentos divididos: cartão + dinheiro, dois cartões e entrada + fiado.
@@ -348,3 +348,5 @@ Esta atualização substitui, para o estado atual, as observações históricas 
 - [ ] Kits, sugestões complementares, fidelidade e relatórios sem cliente/por operador/horário/comparação de modalidades.
 
 Detalhes e dependências de cada item pendente constam no retorno acrescentado ao feedback. Homologação real dos provedores permanece pendente conforme os registros anteriores.
+
+- [~] Projeto secundário Vercel `montante`, também ligado ao repositório, falhou nesta implantação. O projeto de produção `montante-um2r` concluiu com sucesso; não foi alterada a configuração do projeto secundário. Investigar ou desvincular em tarefa própria, se ele ainda for necessário.
