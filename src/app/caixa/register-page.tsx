@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { ArrowDownToLine, ArrowUpFromLine, CircleAlert, LoaderCircle, LockKeyhole, Wallet } from 'lucide-react';
 import StoreNavigation from '@/components/store-navigation';
 import BusinessDate from '@/components/business-date';
@@ -15,6 +16,7 @@ type Register = {
   expectedAmount: string;
   openedAt: string;
   needsClosing: boolean;
+  pendingIssues: { id: string; number: number; amount: string; pendingSale: boolean; pendingCharges: number }[];
   movements: Movement[];
   totals: { cashSales: string; cashCreditReceipts: string; supplies: string; withdrawals: string };
 };
@@ -72,6 +74,7 @@ export default function CashRegisterPage({ operatorName, canManageStore }: { ope
       await action();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Falha ao concluir a operação.');
+      await loadRegister().catch(() => undefined);
     } finally {
       setBusy(false);
     }
@@ -122,6 +125,7 @@ export default function CashRegisterPage({ operatorName, canManageStore }: { ope
         {!register && previousClosing && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Fechamento anterior</h2><div className="mt-3 grid gap-3 sm:grid-cols-3"><p>Esperado: <strong>{formatMoney(previousClosing.expectedAmount)}</strong></p><p>Contado: <strong>{formatMoney(previousClosing.declaredAmount)}</strong></p><p>Diferença: <strong>{formatMoney(previousClosing.differenceAmount)}</strong></p></div></section>}
         {register?.needsClosing && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Este caixa pertence a um dia anterior. Finalize ou cancele as vendas pendentes, confira o dinheiro e feche o turno antes de abrir o caixa de hoje.</div>}
         {register ? <>
+          {!!register.pendingIssues?.length && <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><h2 className="font-semibold">Pendências deste caixa</h2><p className="mt-1">Estas vendas ou cobranças precisam ser resolvidas antes do fechamento. Uma cobrança pode continuar pendente mesmo após o cancelamento da venda.</p><ul className="mt-3 space-y-2">{register.pendingIssues.map(issue => <li key={issue.id}><Link className="font-medium underline" href={`/vendas/${issue.id}`}>Ver venda #{issue.number}</Link> · {formatMoney(issue.amount)} · {issue.pendingSale ? 'Venda pendente' : 'Venda encerrada'}{issue.pendingCharges > 0 && ` · ${issue.pendingCharges} cobrança(s) aguardando confirmação`}</li>)}</ul></section>}
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[['Fundo inicial', register.initialAmount], ['Vendas em dinheiro', register.totals.cashSales], ['Fiados recebidos em dinheiro', register.totals.cashCreditReceipts], ['Suprimentos', register.totals.supplies], ['Esperado na gaveta', register.expectedAmount]].map(([label, value]) => <article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{formatMoney(value)}</p></article>)}
           </section>

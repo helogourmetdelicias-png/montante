@@ -20,8 +20,8 @@ class SaleInputError extends Error {
   }
 }
 
-function getRequestHash(items: Array<{ productId: string; quantityMilli: number }>, discountCents: number, customerId?: string, quickAmount?: number) {
-  return createHash('sha256').update(JSON.stringify({ items, discountCents, ...(customerId ? { customerId } : {}), ...(quickAmount !== undefined ? { quickAmountCents: Math.round(quickAmount * 100) } : {}) })).digest('hex');
+function getRequestHash(items: Array<{ productId: string; quantityMilli: number }>, discountCents: number, customerId?: string, quickAmount?: number, notes?: string) {
+  return createHash('sha256').update(JSON.stringify({ items, discountCents, ...(customerId ? { customerId } : {}), ...(quickAmount !== undefined ? { quickAmountCents: Math.round(quickAmount * 100) } : {}), ...(notes ? { notes } : {}) })).digest('hex');
 }
 
 function serializeSale(sale: {
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'A quantidade total por produto excede o limite permitido.' }, { status: 400 });
   }
   const discountCents = Math.round(input.discountAmount * 100);
-  const requestHash = getRequestHash(items, discountCents, input.customerId, input.quickAmount);
+  const requestHash = getRequestHash(items, discountCents, input.customerId, input.quickAmount, input.notes);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + RESERVATION_MINUTES * 60 * 1000);
 
@@ -205,6 +205,7 @@ export async function POST(request: Request) {
           expires_at: expiresAt,
           cash_register_session_id: cashRegister.id,
           customer_id: input.customerId,
+          notes: input.notes || null,
           items: { create: saleItems },
         },
         include: { items: true },

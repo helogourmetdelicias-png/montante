@@ -1,6 +1,6 @@
 # Checklist de funcionalidades — PDV Montante
 
-Atualizado em: 19/10/2026.
+Atualizado em: 23/10/2026.
 Fonte de ideias: `funcionalidadesPDV.txt`. Conferência: telas, APIs, validações, schema Prisma e testes do projeto.
 
 Esta é uma seleção para o comércio de balcão, com foco inicial em material de construção e venda por medida. A lista de referência não é uma obrigação de implementar todos os recursos. Priorização por utilidade operacional e dependências, sem pesquisa de frequência de uso no mercado.
@@ -16,7 +16,7 @@ Legenda: `[x]` disponível e com validação registrada; `[~]` parcial, presente
 - [x] Adicionar e remover produtos, alterar quantidade e cancelar venda pendente com devolução de reserva.
 - [x] Unidades de medida flexíveis e venda fracionada, com até três casas decimais; unidade inteira rejeita frações.
 - [x] Preço, estoque e localização por corredor/prateleira.
-- [~] Categoria de produto disponível no cadastro; sem subcategorias e filtros avançados.
+- [x] Categoria de produto disponível no cadastro e filtro por categoria no PDV; subcategorias e filtros avançados continuam pendentes.
 - [x] Desconto em reais sobre o total, validado no servidor.
 - [x] Reserva de estoque ao iniciar venda, bloqueio de falta de estoque e devolução no cancelamento/expiração; baixa sem duplicação.
 - [x] Dinheiro com valor recebido e cálculo de troco.
@@ -39,7 +39,7 @@ Legenda: `[x]` disponível e com validação registrada; `[~]` parcial, presente
 - [x] Histórico `/vendas` com número, data em São Paulo, situação e total; filtros por número/situação e paginação de 25 registros. Pagamentos aparecem no detalhe. HTTP autenticado e isolamento entre lojas validados.
 - [x] Detalhe `/vendas/[id]` com itens, desconto, parcelas confirmadas, troco e operador vinculado ao caixa; acesso cruzado retorna 404. Valores/quantidades são históricos; nome/SKU vêm do cadastro atual, pois ainda não há snapshot desses campos.
 - [~] Comprovante não fiscal e reimpressão pelo detalhe/histórico, com link após conclusão no PDV. Botão de imprimir/salvar PDF exclusivo de vendas concluídas; pendentes/canceladas exibem aviso de que não comprovam pagamento e simulação é identificada como teste. Layout de impressão estreito (72 mm), inclusive em A4, implementado; falta conferência visual/física na impressora e homologação do tamanho do papel.
-- [ ] Observação opcional na venda, salva e visível no detalhe/comprovante quando apropriado. Campo `Sale.notes` existe, mas falta fluxo completo.
+- [x] Observação/descrição opcional nas vendas rápida e avançada, persistida em `Sale.notes` e exibida no histórico/detalhe/comprovante.
 
 Critérios: total cobrado igual ao persistido, isolamento por loja, vendas canceladas/pendentes sem aparência de pagas e reimpressão sem nova cobrança ou baixa de estoque.
 
@@ -128,3 +128,8 @@ Critérios: não editar estoque sem rastreio; concorrência, cancelamento e repe
 - [x] Verificação local após a primeira implementação: `npm test` (23/23), TypeScript e `npm run build` passaram. Os testes existentes não cobrem interação com os novos controles; validação no navegador e publicação ainda pendentes.
 
 Próximo bloco sugerido: observações de venda, leitor confiável e atalhos de teclado; depois iniciar movimentações e alertas de estoque. Conferência visual da impressão permanece pendente.
+
+
+## Revisão do feedback — 23/10/2026
+
+Fluxo direto para pagamento, cliente opcional nos dois modos, entrada decimal/centavos, valores frequentes, resumo e avisos de estoque implementados. A lista completa do implantado e do que falta está em `docs/avaliacao-melhorias.md` e no retorno acrescentado a `avaliacao.txt`. Publicação e conferência de produção registradas em `checklist.md`.

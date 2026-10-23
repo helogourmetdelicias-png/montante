@@ -6,7 +6,8 @@ import { updateCustomerSchema } from '@/lib/validations/customer';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
   const access = await customerAccess(true);
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const parsed = updateCustomerSchema.safeParse(await request.json().catch(() => null));
@@ -22,7 +23,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
   const access = await customerAccess(true);
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const result = await prisma.customer.updateMany({ where: { id: params.id, tenant_id: access.tenantId }, data: { isActive: false } });

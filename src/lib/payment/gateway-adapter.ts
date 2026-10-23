@@ -320,6 +320,39 @@ export class PagarMeGateway implements PaymentGateway {
     if (['canceled', 'cancelled', 'failed', 'chargedback'].includes(transactionStatus) || ['canceled', 'cancelled', 'failed'].includes(data.status)) return 'cancelled';
     return 'pending';
   }
+
+  // Ajustado pela auditoria: implementação de cancelOrder para Pagar.me garantindo validação de status e cancelamento de cobrança aberta
+  async cancelOrder(externalId: string): Promise<'cancelled' | 'approved' | 'pending'> {
+    const response = await fetch(`${this.apiBaseUrl}/orders/${encodeURIComponent(externalId)}`, {
+      headers: { Authorization: this.authorization },
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error(`Pagar.me retornou erro ${response.status} ao consultar o pedido para cancelamento.`);
+    const data = await response.json();
+    const transactionStatus = data.last_transaction?.status ?? data.charges?.[0]?.last_transaction?.status;
+    if (transactionStatus === 'paid' || data.status === 'paid') return 'approved';
+    if (['canceled', 'cancelled', 'failed', 'chargedback'].includes(transactionStatus) || ['canceled', 'cancelled', 'failed'].includes(data.status)) return 'cancelled';
+
+    const chargeId = data.charges?.[0]?.id;
+    if (chargeId) {
+      try {
+        const cancelResponse = await fetch(`${this.apiBaseUrl}/charges/${encodeURIComponent(chargeId)}`, {
+          method: 'DELETE',
+          headers: { Authorization: this.authorization, 'Content-Type': 'application/json' },
+          cache: 'no-store',
+        });
+        if (cancelResponse.ok) return 'cancelled';
+        if (cancelResponse.status === 409 || cancelResponse.status === 422) {
+          const freshStatus = await this.checkStatus(externalId);
+          return freshStatus === 'declined' ? 'cancelled' : freshStatus === 'approved' ? 'approved' : freshStatus === 'cancelled' ? 'cancelled' : 'pending';
+        }
+      } catch {
+        // Em caso de falha de rede temporária, recorre à checagem do estado atual
+      }
+    }
+    const current = await this.checkStatus(externalId);
+    return current === 'declined' ? 'cancelled' : current === 'approved' ? 'approved' : current === 'cancelled' ? 'cancelled' : 'pending';
+  }
 }
 
 export class AsaasGateway implements PaymentGateway {

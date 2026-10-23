@@ -5,14 +5,15 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(_request: Request, context: { params: { id: string; attemptId: string } }) {
+export async function POST(_request: Request, context: { params: Promise<{ id: string; attemptId: string }> }) {
+  const params = await context.params;
   const session = await auth();
   const tenantId = session?.user?.tenantId;
   const userId = session?.user?.id;
   if (!tenantId || !userId) return NextResponse.json({ error: 'Entre na sua conta para confirmar o pagamento.' }, { status: 401 });
 
   const attempt = await prisma.paymentAttempt.findFirst({
-    where: { id: context.params.attemptId, sale_id: context.params.id, tenant_id: tenantId },
+    where: { id: params.attemptId, sale_id: params.id, tenant_id: tenantId },
     select: { id: true, sale_id: true, provider: true, status: true, amount: true, method: true },
   });
   if (!attempt) return NextResponse.json({ error: 'Tentativa de pagamento não encontrada nesta loja.' }, { status: 404 });

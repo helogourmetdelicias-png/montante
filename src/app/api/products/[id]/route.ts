@@ -74,7 +74,8 @@ async function getManagementAccess() {
   return { authorized: true as const, tenantId };
 }
 
-export async function PATCH(request: Request, context: { params: { id: string } }) {
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
   const access = await getManagementAccess();
   if (!access.authorized) {
     return NextResponse.json({ error: 'Acesso não autorizado para editar produtos.' }, { status: access.status });
@@ -86,7 +87,7 @@ export async function PATCH(request: Request, context: { params: { id: string } 
   }
 
   const current = await prisma.product.findFirst({
-    where: { id: context.params.id, tenant_id: access.tenantId },
+    where: { id: params.id, tenant_id: access.tenantId },
   });
   if (!current) return NextResponse.json({ error: 'Produto não encontrado nesta loja.' }, { status: 404 });
 
@@ -149,14 +150,15 @@ export async function PATCH(request: Request, context: { params: { id: string } 
   return NextResponse.json({ product: toProductResponse(product) });
 }
 
-export async function DELETE(_request: Request, context: { params: { id: string } }) {
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
   const access = await getManagementAccess();
   if (!access.authorized) {
     return NextResponse.json({ error: 'Acesso não autorizado para desativar produtos.' }, { status: access.status });
   }
 
   const product = await prisma.product.findFirst({
-    where: { id: context.params.id, tenant_id: access.tenantId },
+    where: { id: params.id, tenant_id: access.tenantId },
   });
   if (!product) return NextResponse.json({ error: 'Produto não encontrado nesta loja.' }, { status: 404 });
 

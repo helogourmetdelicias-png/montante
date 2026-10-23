@@ -9,6 +9,7 @@ const saleQuantity = z.number()
 export const createSaleSchema = z.object({
   idempotencyKey: z.string().uuid(),
   customerId: z.string().cuid().optional(),
+  notes: z.string().trim().max(1000).optional(),
   mode: z.enum(['advanced', 'quick']).default('advanced'),
   quickAmount: z.number().finite().positive().max(99_999_999.99)
     .refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, 'Use no máximo duas casas decimais.')
@@ -23,7 +24,7 @@ export const createSaleSchema = z.object({
 }).superRefine((input, ctx) => {
   if (input.mode === 'quick') {
     if (input.quickAmount === undefined) ctx.addIssue({ code: 'custom', path: ['quickAmount'], message: 'Informe o valor da venda rápida.' });
-    if (input.items.length || input.customerId || input.discountAmount !== 0) ctx.addIssue({ code: 'custom', message: 'Venda rápida deve conter somente o valor, sem produtos, cliente ou desconto.' });
+    if (input.items.length || input.discountAmount !== 0) ctx.addIssue({ code: 'custom', message: 'Venda rápida não pode conter produtos ou desconto.' });
   } else if (!input.items.length || input.quickAmount !== undefined) {
     ctx.addIssue({ code: 'custom', path: ['items'], message: 'Adicione produtos à venda avançada.' });
   }

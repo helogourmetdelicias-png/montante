@@ -124,7 +124,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     products: products.map(toProductResponse),
-    ...(includeInactive ? { categories: (await prisma.product.findMany({ where: { tenant_id: access.tenantId, category: { not: null } }, distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' } })).map(row => row.category).filter(Boolean) } : {}),
+    ...(includeInactive || url.searchParams.get('includeCategories') === 'true' ? { categories: (await prisma.product.findMany({ where: { tenant_id: access.tenantId, category: { not: null }, ...(includeInactive ? {} : { is_active: true }) }, distinct: ['category'], select: { category: true }, orderBy: { category: 'asc' } })).map(row => row.category).filter(Boolean) } : {}),
     page,
     limit,
     total,

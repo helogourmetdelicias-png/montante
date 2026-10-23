@@ -1,0 +1,350 @@
+Avaliação do Montante PDV — Loja InfoMengo
+Acessei a loja e avaliei o painel administrativo, PDV, venda rápida, venda avançada, histórico de vendas e caixa.
+Também realizei duas vendas fictícias usando pagamento em dinheiro no caixa, sem utilizar Pix, PagBank ou qualquer pagamento externo.
+Testes realizados
+Venda
+Tipo
+Produtos
+Total
+Recebido
+Troco
+Resultado
+#19
+Avançada
+Cimento CP II 50 kg + Argamassa AC-I 20 kg
+R$ 58,80
+R$ 60,00
+R$ 1,20
+Concluída
+#20
+Rápida
+Sem produto cadastrado
+R$ 25,90
+R$ 30,00
+R$ 4,10
+Concluída
+As duas vendas apareceram corretamente no histórico. O caixa também atualizou o valor de vendas em dinheiro para R$ 471,00, considerando os lançamentos existentes e os dois testes realizados.
+Observação: as vendas fictícias ficaram registradas no sistema como vendas concluídas. Se desejar manter o ambiente limpo, será necessário utilizar o procedimento de cancelamento/estorno disponível no histórico, caso o sistema permita.
+Avaliação geral
+O sistema apresenta uma boa estrutura de PDV, com separação clara entre:
+Venda rápida;
+Venda avançada;
+Produtos;
+Clientes;
+Fiados;
+Caixa;
+Relatórios;
+Histórico de vendas.
+A navegação lateral é organizada e os atalhos de teclado, como F1, F2, F3 e F4, são positivos para uma operação de balcão.
+O sistema também demonstrou bom controle de:
+Estoque;
+Quantidade de produtos;
+Descontos;
+Cliente identificado ou não identificado;
+Pagamento em dinheiro;
+Cálculo de troco;
+Histórico de vendas;
+Caixa esperado;
+Vendas fiadas.
+Venda avançada
+Pontos positivos
+A venda avançada funciona corretamente e oferece recursos importantes:
+Busca de produto por nome ou código de barras;
+Exibição do estoque disponível;
+Exibição de SKU;
+Informação de corredor e prateleira;
+Controle de quantidade;
+Inclusão de múltiplos produtos;
+Aplicação de desconto em valor ou percentual;
+Seleção opcional de cliente;
+Cadastro de cliente durante a venda;
+Venda com dinheiro, Pix ou fiado;
+Reserva do estoque durante a cobrança;
+Cálculo automático de troco;
+Impressão ou visualização do comprovante.
+A informação de localização, como “Corredor A · Prateleira 01”, é especialmente útil para uma loja de material de construção.
+O que pode melhorar na venda avançada
+1. Reduzir a quantidade de etapas
+Ao clicar em “Cobrar”, o sistema abre primeiro a etapa:
+“Quem é o cliente desta venda?”
+Mesmo quando o cliente é opcional, isso cria uma etapa adicional. Para agilizar a operação, o ideal seria:
+Se não houver cliente selecionado, ir diretamente para pagamento;
+Exibir apenas um botão menor para “Adicionar cliente”;
+Deixar o cliente como opção secundária, e não como bloqueio do pagamento.
+Sugestão de fluxo:
+text
+Produtos → Desconto opcional → Pagamento → Concluir
+                         ↘ Cliente opcional
+2. Permitir adicionar produtos sem abrir um modal grande
+O catálogo abre uma janela ampla com muitos produtos. Funciona, mas pode ficar lento para o operador.
+Melhorias possíveis:
+Busca automática enquanto o operador digita;
+Leitura de código de barras já focada ao abrir;
+Produtos mais vendidos no topo;
+Botão “Adicionar” mais evidente;
+Categorias como hidráulica, elétrica, ferramentas, cimento e acabamento;
+Opção de fixar produtos favoritos;
+Inclusão por código sem precisar clicar em “Buscar”.
+3. Melhorar o controle de quantidade
+O controle atual funciona, mas poderia oferecer:
+Digitação direta da quantidade;
+Atalhos para multiplicar rapidamente;
+Aviso visual quando a quantidade solicitada ultrapassar o estoque;
+Suporte melhor para produtos vendidos por peso, metro ou fração;
+Campo de observação por item.
+4. Criar venda com múltiplas formas de pagamento
+Esse é um recurso importante para lojas físicas. Exemplos:
+Parte em dinheiro e parte no Pix;
+Parte em cartão e parte em dinheiro;
+Entrada agora e saldo fiado;
+Divisão entre dois cartões.
+Atualmente, a venda parece trabalhar com uma única forma de pagamento por vez.
+5. Exibir margem ou preço mínimo para desconto
+O desconto permite escolher valor ou percentual, mas seria interessante controlar:
+Desconto máximo permitido por operador;
+Autorização de gerente;
+Preço mínimo;
+Margem estimada;
+Motivo do desconto.
+Isso reduz o risco de descontos excessivos.
+6. Melhorar a identificação do cliente
+O campo aceita nome ou CPF/CNPJ com pelo menos dois caracteres. Seria interessante incluir:
+Histórico de compras do cliente;
+Último preço praticado;
+Saldo fiado;
+Telefone;
+Endereço para entrega;
+Sugestão automática de clientes frequentes;
+Aviso de cliente inadimplente antes de permitir fiado.
+Venda rápida
+Pontos positivos
+A venda rápida é realmente mais simples e cumpre sua finalidade:
+Não exige produto cadastrado;
+Não exige cliente;
+Não movimenta estoque;
+Permite informar apenas o valor;
+Permite escolher forma de pagamento;
+Calcula troco;
+Conclui rapidamente;
+Usa o atalho F1.
+Esse fluxo é adequado para:
+Serviços;
+Pequenas cobranças;
+Produtos ainda não cadastrados;
+Taxas de entrega;
+Vendas emergenciais;
+Itens de baixo valor;
+Operações rápidas no balcão.
+O que pode melhorar na venda rápida
+1. Tornar a entrada do valor mais intuitiva
+O sistema informa:
+“Digite 1234 para R$ 12,34.”
+Esse comportamento pode confundir o operador. Muitas pessoas esperam digitar diretamente 12,34.
+Sugestão:
+Aceitar 12,34;
+Aceitar 12.34;
+Aceitar 1234;
+Aplicar máscara automática de moeda;
+Exibir teclado numérico na tela;
+Mostrar exemplos mais claros.
+O ideal seria o operador digitar:
+text
+12,34
+e o sistema interpretar diretamente como R$ 12,34.
+2. Permitir descrição da venda rápida
+Atualmente a venda rápida fica sem produto e sem descrição. Isso dificulta a conferência posterior.
+Seria muito útil incluir campos como:
+Descrição da venda;
+Categoria;
+Observação;
+Nome do serviço;
+Referência do orçamento;
+Número do pedido;
+Cliente opcional.
+Exemplo:
+text
+Venda rápida
+Descrição: Entrega de material
+Categoria: Frete
+Cliente: João da Silva
+Observação: Entrega no endereço informado
+3. Permitir cliente opcional na venda rápida
+Mesmo que a venda rápida não movimente estoque, pode ser importante vincular a venda a um cliente para:
+Histórico de compras;
+Relacionamento;
+Garantia;
+Relatórios;
+Comissões;
+Controle de serviços;
+Futuro acompanhamento.
+4. Criar atalhos de valores frequentes
+Para acelerar ainda mais:
+R$ 10,00;
+R$ 20,00;
+R$ 50,00;
+R$ 100,00;
+Repetir último valor;
+Botões de acréscimo rápido.
+5. Melhorar o aviso sobre estoque
+A mensagem informa corretamente que a venda rápida não movimenta estoque. Porém, deveria ficar ainda mais evidente que:
+O produto não será baixado;
+A venda não será associada a um SKU;
+O relatório de produtos não refletirá essa saída;
+A venda rápida deve ser usada somente quando isso for intencional.
+Sugestão de alerta:
+“A venda rápida registra apenas o valor financeiro. Nenhum produto será baixado do estoque.”
+6. Separar melhor venda rápida de serviço
+Seria interessante ter dois modos:
+Venda rápida de produto não cadastrado;
+Venda de serviço/taxa.
+Isso permitiria relatórios mais confiáveis.
+Problemas de usabilidade identificados
+1. Botão “Cobrar” pode gerar dúvida
+Na venda avançada, o botão “Cobrar” inicialmente leva para a etapa de cliente. O operador pode imaginar que a cobrança já será iniciada imediatamente.
+Sugestões de nomenclatura:
+“Continuar para cliente”;
+“Continuar para pagamento”;
+“Revisar venda”;
+“Finalizar pagamento”.
+2. Falta de confirmação visual antes da conclusão
+A confirmação atual aparece depois da venda. Seria interessante apresentar um resumo antes de registrar:
+text
+Itens: 2
+Subtotal: R$ 58,80
+Desconto: R$ 0,00
+Total: R$ 58,80
+Pagamento: Dinheiro
+Cliente: Não identificado
+Com os botões:
+Voltar;
+Confirmar venda;
+Cancelar.
+3. Necessidade de ambiente de testes
+Como o sistema permite criar vendas, seria importante ter:
+Modo demonstração;
+Ambiente de homologação;
+Etiqueta “Venda de teste”;
+Exclusão de vendas fictícias;
+Reset de dados de demonstração;
+Bloqueio de pagamentos reais no modo teste.
+Isso evitaria que testes alterassem os números oficiais do caixa e dos relatórios.
+4. Falta de indicador de venda fictícia
+Durante os testes, não encontrei uma opção para marcar a venda como fictícia ou treinamento. Essa função seria muito útil para capacitar operadores.
+Sugestões prioritárias
+Prioridade alta
+Reduzir o fluxo da venda avançada, evitando obrigar a passagem pela tela de cliente.
+Corrigir e flexibilizar a entrada de valores na venda rápida.
+Criar descrição para vendas rápidas.
+Criar modo de treinamento/teste.
+Permitir múltiplas formas de pagamento.
+Exibir claramente o método de pagamento selecionado.
+Melhorar a confirmação antes da conclusão da venda.
+Prioridade média
+Criar favoritos e produtos mais vendidos.
+Permitir cliente opcional na venda rápida.
+Mostrar histórico e saldo fiado ao selecionar cliente.
+Criar limites de desconto por operador.
+Criar categorias para vendas rápidas.
+Incluir observações e número de orçamento.
+Melhorar atalhos e teclado numérico.
+Prioridade baixa, mas estratégica
+Criar sugestão automática de produtos complementares.
+Criar kits de venda, como:
+Cimento + argamassa;
+Chuveiro + fita veda-rosca;
+Furadeira + broca;
+Tinta + rolo + fita crepe.
+Criar programa de fidelidade.
+Criar ranking de produtos mais vendidos.
+Criar painel de conversão entre venda rápida e venda avançada.
+Criar relatórios de vendas sem cliente.
+Criar relatórios de vendas por operador e por horário.
+Feedback final
+O sistema está funcional e já possui uma base boa para operação de loja. A parte mais forte é a integração entre PDV, estoque, clientes, fiado, caixa e histórico de vendas.
+A venda avançada é completa, mas pode ficar mais rápida se a identificação do cliente deixar de interromper o processo. O principal objetivo deve ser reduzir cliques e levar o operador ao pagamento com o menor número de etapas possível.
+A venda rápida é simples e útil, mas precisa de descrição, cliente opcional e uma entrada de valor mais natural. Hoje ela funciona bem para velocidade, mas gera pouca informação gerencial.
+Minha recomendação principal é priorizar:
+Velocidade no balcão;
+Menos telas intermediárias;
+Melhor identificação das vendas;
+Modo de teste;
+Controle financeiro mais detalhado;
+Relatórios mais completos.
+Com esses ajustes, o Montante PDV pode se tornar mais rápido para o operador e, ao mesmo tempo, entregar informações melhores para gestão, estoque, vendas e relacionamento com clientes.
+
+============================================================
+RETORNO SOBRE O FEEDBACK — 23/10/2026
+Legenda: implementado = código validado; publicação registrada no checklist.
+O feedback original acima foi preservado integralmente.
+============================================================
+
+# Avaliação do feedback do Montante
+
+Revisão de `avaliacao.txt` em 23/10/2026. A avaliação descreve uma experiência de uso; as sugestões foram comparadas com o código, sem excluir ou estornar as vendas fictícias #19 e #20.
+
+## Melhorias implementadas nesta revisão
+
+| Pedido | Resultado |
+| --- | --- |
+| Menos etapas na venda avançada | Produtos seguem diretamente para pagamento. Identificação do cliente é opcional; fiado continua exigindo cliente. |
+| Cliente opcional na venda rápida | Reutiliza o seletor, cadastro e vínculo de cliente existentes, com validação da loja e de cliente ativo. |
+| Descrição, observação e referência | Reutiliza `Sale.notes`, sem criar outra tabela ou campo equivalente. Disponível nos dois modos; aparece no histórico e no comprovante. Orçamento/pedido pode ser informado como texto, sem criar um módulo de orçamento. |
+| Valor digitado com vírgula ou ponto | Venda rápida abre em modo decimal: `12,34` e `12.34` significam R$ 12,34. O modo anterior em centavos permanece selecionável: `1234` significa R$ 12,34. Em modo decimal, `1234` significa R$ 1.234,00. |
+| Atalhos de valor | Botões de R$ 10, R$ 20, R$ 50 e R$ 100 substituem o valor da venda rápida. |
+| Aviso sobre estoque | Texto explícito: a venda rápida registra valor financeiro e não baixa produtos. |
+| Categorias no catálogo do PDV | Filtro utiliza a API de produtos existente e categorias ativas da própria loja. |
+| Adicionar produto mais evidente | Botão do produto passa a exibir “Adicionar” além do símbolo. |
+| Quantidade acima do estoque | Aviso identifica produto, quantidade solicitada e disponível; impede iniciar a cobrança até ajustar. A validação definitiva do estoque permanece no servidor. |
+| Resumo antes da cobrança | Cliente, descrição, método e total aparecem junto ao botão de cobrança. Subtotal e desconto continuam no mesmo painel; não foi introduzida outra etapa obrigatória. |
+| Identificação do cliente | Telefone visível após selecionar. Responsáveis e administradores têm acesso direto ao histórico existente, preservando as permissões. |
+| Busca automática | Mantida; respostas de pesquisas antigas são descartadas para não substituir resultados mais recentes. |
+| Fechamento de caixa | Preservada a correção da etapa anterior: tentativa manual de venda cancelada não bloqueia o fechamento. Pendências reais aparecem no Caixa e nos detalhes; cobranças externas continuam bloqueando até resolução. Regra compartilhada entre as duas telas. |
+
+Não houve migração de banco nem mudança no cálculo financeiro, reserva de estoque, permissões, integração com provedores ou regras de fiado. A compilação identificou incompatibilidades existentes com Next.js 15: corrigidas a leitura assíncrona do cabeçalho no login e a resolução dos parâmetros nas rotas dinâmicas e páginas de vendas/clientes. São ajustes de compatibilidade, sem alteração das regras dessas rotas.
+
+## Recursos já existentes
+
+| Sugestão | Situação encontrada |
+| --- | --- |
+| Busca enquanto digita | Já existe, com intervalo de 250 ms. |
+| Foco para código de barras | Já existe ao abrir a venda avançada; Enter adiciona correspondência encontrada. |
+| Quantidade digitável e frações | Já existem; precisão de até três casas, respeitando o cadastro do produto. |
+| Dinheiro + Pix | Já existe a opção de pagamento dividido, conforme provedor disponível. Não significa suporte a quaisquer combinações. |
+| Histórico de compras do cliente | Já existe para responsável/administrador. |
+| Telefone e endereço | Já existem no cadastro e são reaproveitados quando o provedor exige dados do comprador. |
+| Ranking de produtos | Já existe nos relatórios, por receita e quantidade. Ordenar o catálogo pelos mais vendidos ainda é uma melhoria separada. |
+| Identificação de pagamento simulado | Há indicação para a simulação específica de Pix. Isso não constitui um ambiente geral de treinamento isolado. |
+| Saldo de fiado | Já existe na área Fiados; exibição automática no seletor do PDV ainda não foi implementada. |
+
+## Viáveis, mas exigem uma próxima etapa
+
+| Proposta | Trabalho necessário para preservar a operação |
+| --- | --- |
+| Treinamento/demonstração e reset | Separar dados, caixa, estoque, faturamento e credenciais. Preferir loja/base de homologação. Não basta marcar uma venda real como teste ou ocultá-la dos relatórios. |
+| Estorno de vendas concluídas / limpeza dos testes | Criar fluxo auditável para dinheiro, estoque, fiado e provedores. O cancelamento atual de reservas pendentes não equivale a um estorno. Não apagar vendas concluídas silenciosamente. |
+| Cartão + dinheiro, dois cartões e entrada + fiado | Definir parcelas, saldo, cancelamento parcial, estorno e conciliação. Reutilizar tentativas existentes, ampliar o fluxo transacional e testar cada combinação. |
+| Desconto por operador, autorização do gerente, preço mínimo, margem e motivo | Definir limites, permissões e tratamento de produtos sem custo. Exigir validação no servidor e auditoria; não apenas bloquear na interface. |
+| Saldo e inadimplência antes do fiado | Mostrar saldo reaproveitando a apuração existente. Para chamar de “inadimplente” ou bloquear vendas, definir vencimento, limite de crédito e exceções. |
+| Último preço, clientes frequentes | Definir período e política de acesso; buscar histórico da própria loja. |
+| Favoritos | Definir se pertencem ao operador ou à loja, persistência e tratamento de produtos inativos. |
+| Mais vendidos no catálogo | Reutilizar agregações de relatórios com período e atualização definidos. |
+| Catálogo compacto, sem modal grande | Reorganizar o componente existente para não duplicar catálogo/carrinho; validar atalhos, foco e telas pequenas. |
+| Multiplicação rápida, teclado na tela, repetir último valor e acréscimos | Definir atalhos sem conflito e comportamento inequívoco dos valores; validar leitores e dispositivos móveis. O teclado numérico do dispositivo já é solicitado pelo campo. |
+| Observação por item | Exige persistência por item e alteração do comprovante; não confundir com observação geral da venda. |
+| Categoria de venda rápida e distinção serviço/produto | Criar classificação explícita e relatórios compatíveis, incluindo tratamento dos registros anteriores sem classificação. |
+| Kits e sugestões complementares | Definir composição, preço, desconto e baixa de cada componente. |
+| Fidelidade | Definir pontos, resgates, validade e estorno. |
+| Relatório sem cliente, por operador/horário e comparação rápida/avançada | Reutilizar filtros e agregações existentes, definir indicadores e períodos. “Conversão” exige definir qual evento está sendo medido. |
+
+Todas são tecnicamente possíveis. As próximas prioridades recomendadas são treinamento isolado, consulta de saldo no PDV e ampliação dos pagamentos divididos, com regras acordadas antes de alterar o comportamento financeiro.
+
+## Validação
+
+- Suíte completa: 72 testes passaram, incluindo valores, cliente opcional, fechamento e o teste da API de venda rápida.
+- Teste da API de venda rápida: descrição persistida, cliente da própria loja, ausência de baixa de estoque, repetição idempotente e conflito de descrição; executado com dependências isoladas, sem acesso à base real.
+- Acrescentado e aprovado mais um caso para parâmetros assíncronos com consulta restrita à loja; o arquivo com os dois testes de API passou novamente. Total: 73 casos distintos aprovados.
+- Verificação TypeScript passou após a correção do login.
+- Lint passou com avisos existentes de hooks e imagem.
+- Compilação de produção concluída com sucesso, incluindo geração das páginas e validação dos tipos das rotas.
+- Não foram executadas vendas reais ou testes de pagamento com provedores. Publicação e conferência visual autenticada no ambiente de homologação continuam separadas desta revisão.
+

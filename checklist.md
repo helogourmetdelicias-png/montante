@@ -308,3 +308,43 @@ Este arquivo é a referência de andamento. Só marcar como validado depois de e
 - [x] IA Montante: menu /ia para owner/admin e conversa com Groq, filtro de até 366 dias, orientações sobre o sistema e consultas somente da loja autenticada. Resumo inclui vendas concluídas, ticket médio, pagamentos aprovados, vendas/recebimentos de fiados, saldo atual de fiados, suprimentos/sangrias e amostra das 20 vendas mais recentes. Não inclui nomes/documentos/contatos de clientes, observações ou segredos no contexto automático. Sem ferramentas de escrita, SQL livre ou bypass para administrador geral. Chave apenas no servidor; aviso de envio à Groq e estado sem configuração.
 - [x] Validações da IA em 21/10/2026: 55 testes automatizados, TypeScript, build de produção sem lint e integração com banco passaram. Duas lojas temporárias confirmaram isolamento, status, limites de datas de São Paulo, recebimento parcial e saldo de todo o histórico. Conexão Groq real validada com dados fictícios, usando openai/gpt-oss-120b disponível na conta. Navegador confirmou menu, pergunta e resposta correta com R$ 120,50 de vendas, R$ 40,00 recebidos de fiado e R$ 60,00 em aberto; horário local conferido. Prévia montante-ia.png. Arquivos, limites e configuração em docs/ia-montante.md. Chave .env.local ignorada pelo Git; categoria.txt preservado.
 - [~] IA Montante validada; publicação em andamento. Proteção de uso é por instância/tenant e deve ser complementada pelos limites do projeto Groq. Respostas podem conter imprecisões; valores diretos do banco ficam visíveis na tela. Nenhuma migração de banco necessária.
+- [x] IA Montante publicada no commit dbbf33c em 21/10/2026; Vercel montante-um2r confirmou Deployment has completed. Validação autenticada no domínio público com loja temporária confirmou menu, chave Groq da Vercel e resposta real: R$ 120,50 vendidos, R$ 40,00 recebidos de fiados e R$ 60,00 em aberto. /ia e /api/ai/chat sem sessão responderam 307 para /login. A chave não aparece nos 38 arquivos públicos do build. Loja temporária e dados fictícios removidos, com IDs e slug conferidos antes da limpeza. Prévia montante-ia-publicada.png. O projeto secundário montante falhou como nas publicações anteriores e não serve o domínio em uso; não foi alterado nesta tarefa. Nenhuma pendência de conexão ou publicação da IA.
+
+- [x] Auditoria técnica e correções de segurança/qualidade em 21/10/2026:
+  - Proteção de estoque Pix Pagar.me: adicionado `pagarme` aos filtros de retenção de estoque de `releaseExpiredSales` (`src/lib/sales/reservations.ts`), implementado método `cancelOrder()` no `PagarMeGateway` (`src/lib/payment/gateway-adapter.ts`) e adicionada conciliação e cancelamento no ciclo de vida de pedidos externos (`src/lib/sales/provider-order-lifecycle.ts` e `src/app/api/sales/[id]/cancel/route.ts`), eliminando risco de liberação prematura de estoque com Pix pendente.
+  - Pagamento misto ("Pix + dinheiro") no PDV: identificado `effectivePixProvider` dentro da modalidade `'split'` em `src/app/pdv/point-of-sale.tsx`, garantindo exibição e validação dos dados de comprador (nome, CPF/CNPJ, telefone) para cobranças Pagar.me e PagBank; PagBank habilitado na lista de opções de split em `src/app/api/pos/payment-options/route.ts`.
+  - Segurança de borda no middleware: `/api/settings/payments` removido de `PUBLIC_ROUTES` em `src/middleware.ts` para garantir redirecionamento de acessos não autenticados na borda.
+  - Configuração do ESLint: criado `.eslintrc.json` com `next/core-web-vitals`; `npm run lint` validado e aprovado com código 0 em execução não-interativa.
+  - Validações completas aprovadas: 56 testes automatizados (`npm test`, incluindo novo teste de `cancelOrder`), TypeScript com 0 erros (`npx tsc --noEmit`), ESLint aprovado, build de produção concluído com sucesso (`npm run build`) gerando as 22 páginas estáticas e rotas dinâmicas, e testes de banco de dados (`test:catalog-excel:db`, `test:product-niche:db`, `test:quick-sales:db`) aprovados. Cada linha modificada no código recebeu comentário explicativo, nenhuma funcionalidade foi desabilitada e `categoria.txt` foi preservado.
+- [~] Próximos passos recomendados (Auditoria Técnica):
+  - Atualização segura do Next.js: planejar atualização pontual para versão patch de segurança `next@14.2.24` (na linha 14.x) para mitigar vulnerabilidades reportadas pelo `npm audit` (DoS e SSRF em Server Actions/Components) sem quebras de compatibilidade de versão maior.
+  - Monitoramento e conciliação em tempo real Pagar.me: planejar rota de webhook dedicada (`/api/webhooks/pagarme`) para reconciliação automática de Pix pagos fora da tela do PDV, espelhando a arquitetura adotada para o Mercado Pago.
+
+
+## Entrega do feedback e fechamento de caixa — 23/10/2026
+
+Esta atualização substitui, para o estado atual, as observações históricas de fluxo obrigatório Produtos → Cliente → Pagamento e de atualização pendente do Next.js.
+
+- [x] Caixa: tentativas manuais de vendas canceladas deixam de bloquear o fechamento; cobranças externas continuam exigindo resolução. Pendências visíveis no Caixa e no detalhe da venda, com regra compartilhada.
+- [x] Venda avançada: Produtos → Pagamento, cliente opcional; fiado mantém cliente obrigatório.
+- [x] Venda rápida: descrição/observação e cliente opcional, reutilizando Sale.notes e cadastro/seletor existentes; informação preservada no histórico e comprovante.
+- [x] Valor rápido: modo decimal (12,34 ou 12.34), modo anterior em centavos selecionável e atalhos R$ 10/20/50/100.
+- [x] Catálogo: filtro por categorias ativas da loja, botão Adicionar explícito e descarte de respostas antigas da busca.
+- [x] Conferência: resumo antes de cobrar, método selecionado, aviso de estoque insuficiente e aviso explícito de que venda rápida não baixa produtos.
+- [x] Cliente: telefone visível e acesso ao histórico para responsáveis/administradores, respeitando permissões existentes.
+- [x] Compatibilidade com Next.js 15.5.28 / React 19.1.10 presentes no workspace: cabeçalho e parâmetros de páginas/rotas resolvidos de forma assíncrona. Build de produção aprovado.
+- [x] Preservadas as correções anteriores da auditoria: cancelamento/reconciliação Pagar.me, dados de comprador no pagamento misto, proteção administrativa e configuração de lint.
+- [x] Validações anteriores: 73 casos distintos aprovados, compilação de produção e lint aprovados (avisos preexistentes). Sem migração, exclusão das vendas #19/#20 ou pagamentos reais.
+- [x] Feedback original preservado em avaliacao.txt e complementado com o estado de cada sugestão; referência organizada em docs/avaliacao-melhorias.md.
+- [ ] Publicar esta entrega e verificar o deploy de produção.
+- [ ] Conferência visual autenticada do Caixa e PDV; validar no balcão sem criar vendas fictícias em produção.
+- [ ] Treinamento isolado, estorno auditável e reset de demonstração.
+- [ ] Ampliar pagamentos divididos: cartão + dinheiro, dois cartões e entrada + fiado.
+- [ ] Limites de desconto, autorização gerencial, margem/preço mínimo e motivo.
+- [ ] Saldo de fiado no PDV e regras de vencimento/inadimplência; último preço e clientes frequentes.
+- [ ] Favoritos e mais vendidos no catálogo; catálogo compacto sem duplicar componentes.
+- [ ] Atalhos de multiplicação, teclado na tela, repetir/acrescentar valor e homologação de leitor físico.
+- [ ] Observações por item; categorias e distinção produto/serviço na venda rápida.
+- [ ] Kits, sugestões complementares, fidelidade e relatórios sem cliente/por operador/horário/comparação de modalidades.
+
+Detalhes e dependências de cada item pendente constam no retorno acrescentado ao feedback. Homologação real dos provedores permanece pendente conforme os registros anteriores.

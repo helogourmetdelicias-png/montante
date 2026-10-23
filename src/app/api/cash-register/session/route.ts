@@ -1,4 +1,5 @@
 import { auth } from '@/auth';
+import { getClosingIssues } from '@/lib/cash-register/pending';
 import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
 import { runSerializableTransaction } from '@/lib/database/transactions';
 import { getCashRegisterSummary, expectedDrawerAmount } from '@/lib/cash-register/summary';
@@ -44,10 +45,12 @@ export async function GET() {
   }
 
   const totals = await getCashRegisterSummary(prisma, identity.tenantId, register.id);
+  const pendingIssues = await getClosingIssues(prisma, identity.tenantId, register.id);
   const expected = expectedDrawerAmount(register.initial_amount, totals);
   return NextResponse.json({
     session: {
       id: register.id,
+      pendingIssues,
       status: register.status,
       initialAmount: register.initial_amount.toFixed(2),
       expectedAmount: expected.toFixed(2),
@@ -124,20 +127,9 @@ export async function PATCH(request: Request) {
       where: { id: parsed.data.sessionId, tenant_id: identity.tenantId, user_id: identity.userId, status: 'OPEN' },
     });
     if (!register) return null;
-    const [pendingSales, pendingAttempts] = await Promise.all([
-      tx.sale.count({
-        where: { tenant_id: identity.tenantId, cash_register_session_id: register.id, status: 'pending' },
-      }),
-      tx.paymentAttempt.count({
-        where: {
-          tenant_id: identity.tenantId,
-          status: { in: ['CREATED', 'PENDING'] },
-          sale: { is: { tenant_id: identity.tenantId, cash_register_session_id: register.id } },
-        },
-      }),
-    ]);
-    if (pendingSales > 0) return { blocked: 'pending_sales' as const };
-    if (pendingAttempts > 0) return { blocked: 'pending_attempts' as const };
+    const issues = await getClosingIssues(tx, identity.tenantId, register.id);
+    if (issues.some(issue => issue.pendingSale)) return { blocked: 'pending_sales' as const };
+    if (issues.length > 0) return { blocked: 'pending_attempts' as const };
     const totals = await getCashRegisterSummary(tx, identity.tenantId, register.id);
     const expected = expectedDrawerAmount(register.initial_amount, totals);
     const declared = new Prisma.Decimal(parsed.data.declaredAmount);

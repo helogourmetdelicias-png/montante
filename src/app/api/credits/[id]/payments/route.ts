@@ -9,7 +9,8 @@ const schema = z.object({
   method: z.enum(['CASH', 'PIX', 'CREDIT_CARD', 'DEBIT_CARD']),
 }).strict();
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
   const session = await auth();
   if (!session?.user?.tenantId || !session.user.id) return NextResponse.json({ error: 'Entre na sua conta.' }, { status: 401 });
   const input = schema.safeParse(await request.json().catch(() => null));

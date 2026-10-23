@@ -11,14 +11,15 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** Reconciles pending online payments with their provider before completing the sale. */
-export async function GET(_request: Request, context: { params: { id: string; attemptId: string } }) {
+export async function GET(_request: Request, context: { params: Promise<{ id: string; attemptId: string }> }) {
+  const params = await context.params;
   const session = await auth();
   const tenantId = session?.user?.tenantId;
   if (!tenantId) return NextResponse.json({ error: 'Entre na sua conta para consultar o pagamento.' }, { status: 401 });
 
 
   const attempt = await prisma.paymentAttempt.findFirst({
-    where: { id: context.params.attemptId, sale_id: context.params.id, tenant_id: tenantId },
+    where: { id: params.attemptId, sale_id: params.id, tenant_id: tenantId },
     include: {
       gateway_config: { select: { encrypted_credentials: true, environment: true } },
       sale: { select: { status: true, total_amount: true, cash_register_session_id: true } },

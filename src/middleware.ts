@@ -1,7 +1,8 @@
 import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
 
-const PUBLIC_ROUTES = ['/login', '/register', '/cadastro', '/api/auth', '/api/settings/payments'];
+// Ajustado pela auditoria: rota administrativa /api/settings/payments removida de PUBLIC_ROUTES para manter a proteção de borda do middleware
+const PUBLIC_ROUTES = ['/login', '/register', '/cadastro', '/api/auth'];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;

@@ -1,6 +1,7 @@
 import { PaymentAttemptStatus, Prisma } from '@prisma/client';
 import { decryptCredentials } from '@/lib/encryption';
-import { MercadoPagoGateway, PagBankGateway } from '@/lib/payment/gateway-adapter';
+// Ajustado pela auditoria: PagarMeGateway importado para reconciliação e cancelamento de ordens Pix
+import { MercadoPagoGateway, PagBankGateway, PagarMeGateway } from '@/lib/payment/gateway-adapter';
 import { prisma } from '@/lib/prisma';
 import { applyPaymentResult } from '@/lib/sales/payment-result';
 
@@ -14,11 +15,12 @@ export async function cancelProviderOrdersForSale(tenantId: string, saleId: stri
   });
   if (!sale) return 'not_found';
 
+  // Ajustado pela auditoria: pagarme incluído para detectar pagamento já recebido
   const approvedAttempt = await prisma.paymentAttempt.findFirst({
     where: {
       tenant_id: tenantId,
       sale_id: saleId,
-      provider: { in: ['mercadopago', 'pagbank'] },
+      provider: { in: ['mercadopago', 'pagbank', 'pagarme'] },
       status: PaymentAttemptStatus.APPROVED,
       external_order_id: { not: null },
     },
@@ -26,11 +28,12 @@ export async function cancelProviderOrdersForSale(tenantId: string, saleId: stri
   });
   if (approvedAttempt) return 'payment_received';
 
+  // Ajustado pela auditoria: pagarme incluído para cancelamento de ordens abertas no gateway
   const attempts = await prisma.paymentAttempt.findMany({
     where: {
       tenant_id: tenantId,
       sale_id: saleId,
-      provider: { in: ['mercadopago', 'pagbank'] },
+      provider: { in: ['mercadopago', 'pagbank', 'pagarme'] },
       status: { in: [PaymentAttemptStatus.CREATED, PaymentAttemptStatus.PENDING] },
     },
     include: { gateway_config: { select: { encrypted_credentials: true, environment: true } } },
@@ -42,12 +45,20 @@ export async function cancelProviderOrdersForSale(tenantId: string, saleId: stri
     if (!encryptedCredentials || !attempt.external_order_id) return 'still_pending';
 
     const credentials = decryptCredentials(encryptedCredentials);
-    const accessToken = attempt.provider === 'pagbank' ? credentials.token : credentials.access_token;
+    // Ajustado pela auditoria: obter a credencial correspondente ao provedor (token para pagbank, api_key para pagarme, access_token para mercadopago)
+    const accessToken = attempt.provider === 'pagbank'
+      ? credentials.token
+      : attempt.provider === 'pagarme'
+        ? credentials.api_key
+        : credentials.access_token;
     if (typeof accessToken !== 'string' || !accessToken) return 'still_pending';
 
+    // Ajustado pela auditoria: instanciar gateway correspondente ao provedor e chamar cancelOrder
     const gateway = attempt.provider === 'pagbank'
       ? new PagBankGateway(accessToken, attempt.gateway_config?.environment === 'production' ? 'production' : 'sandbox')
-      : new MercadoPagoGateway(accessToken);
+      : attempt.provider === 'pagarme'
+        ? new PagarMeGateway(accessToken)
+        : new MercadoPagoGateway(accessToken);
     const providerState = gateway instanceof PagBankGateway
       ? await gateway.cancelOrder(attempt.external_order_id, Number(attempt.amount.mul(100).toString()))
       : await gateway.cancelOrder(attempt.external_order_id);
@@ -98,13 +109,15 @@ export async function releaseExpiredSaleWithProviderCheck(tenantId: string, sale
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const result = await prisma.$transaction(async (tx) => {
-        const pendingPagBank = await tx.paymentAttempt.findFirst({ where: { tenant_id: tenantId, sale_id: saleId, provider: 'pagbank', status: { in: ['CREATED', 'PENDING', 'APPROVED'] } }, select: { id: true } });
-        if (pendingPagBank) return { state: 'still_pending' as const, released: false };
+        // Ajustado pela auditoria: garantir que tentativas pagbank ou pagarme não liberem estoque prematuramente
+        const pendingExternal = await tx.paymentAttempt.findFirst({ where: { tenant_id: tenantId, sale_id: saleId, provider: { in: ['pagbank', 'pagarme'] }, status: { in: ['CREATED', 'PENDING', 'APPROVED'] } }, select: { id: true } });
+        if (pendingExternal) return { state: 'still_pending' as const, released: false };
+        // Ajustado pela auditoria: marcar tentativas canceladas também para pagarme
         const cancelledAttempts = await tx.paymentAttempt.updateMany({
           where: {
             tenant_id: tenantId,
             sale_id: saleId,
-            provider: { in: ['mercadopago', 'pagbank'] },
+            provider: { in: ['mercadopago', 'pagbank', 'pagarme'] },
             status: { in: [PaymentAttemptStatus.CREATED, PaymentAttemptStatus.PENDING] },
             external_order_id: { not: null },
           },

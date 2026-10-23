@@ -7,7 +7,8 @@ import { Prisma } from '@prisma/client';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
   const access = await customerAccess(true);
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   const url = new URL(request.url);

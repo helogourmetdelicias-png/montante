@@ -37,7 +37,8 @@ function serializeAttempt(attempt: {
   };
 }
 
-export async function POST(request: Request, context: { params: { id: string } }) {
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
   const session = await auth();
   const tenantId = session?.user?.tenantId;
   if (!tenantId) return NextResponse.json({ error: 'Entre na sua conta para iniciar o pagamento.' }, { status: 401 });
@@ -47,7 +48,7 @@ export async function POST(request: Request, context: { params: { id: string } }
   if (!parsed.success) return NextResponse.json({ error: 'Dados do pagamento inválidos.', details: parsed.error.flatten() }, { status: 400 });
   const input = parsed.data;
   const sale = await prisma.sale.findFirst({
-    where: { id: context.params.id, tenant_id: tenantId },
+    where: { id: params.id, tenant_id: tenantId },
     select: { id: true, status: true, total_amount: true, expires_at: true, cash_register_session_id: true },
   });
   if (!sale) return NextResponse.json({ error: 'Venda não encontrada nesta loja.' }, { status: 404 });

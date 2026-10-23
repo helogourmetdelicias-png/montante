@@ -9,7 +9,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** Simulates a successful provider callback for local/Sandbox validation only. */
-export async function POST(_request: Request, context: { params: { id: string; attemptId: string } }) {
+export async function POST(_request: Request, context: { params: Promise<{ id: string; attemptId: string }> }) {
+  const params = await context.params;
   if (process.env.NODE_ENV === 'production' || process.env.PAYMENTS_TEST_ENABLED !== 'true') {
     return NextResponse.json({ error: 'A simulação de pagamento está desativada.' }, { status: 404 });
   }
@@ -21,8 +22,8 @@ export async function POST(_request: Request, context: { params: { id: string; a
 
   const attempt = await prisma.paymentAttempt.findFirst({
     where: {
-      id: context.params.attemptId,
-      sale_id: context.params.id,
+      id: params.attemptId,
+      sale_id: params.id,
       tenant_id: access.tenantId,
     },
     include: {

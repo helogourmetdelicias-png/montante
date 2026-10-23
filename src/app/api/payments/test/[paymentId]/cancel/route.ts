@@ -8,7 +8,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** Cancels a disposable Sandbox Order without touching local sales or stock. */
-export async function POST(_request: Request, context: { params: { paymentId: string } }) {
+export async function POST(_request: Request, context: { params: Promise<{ paymentId: string }> }) {
+  const params = await context.params;
   if (process.env.NODE_ENV === 'production' || process.env.PAYMENTS_TEST_ENABLED !== 'true') {
     return NextResponse.json({ error: 'Endpoint de teste desativado.' }, { status: 404 });
   }
@@ -17,7 +18,7 @@ export async function POST(_request: Request, context: { params: { paymentId: st
   if (!access.authorized) {
     return NextResponse.json({ error: 'Acesso não autorizado. Entre com uma conta administradora da loja.' }, { status: access.status });
   }
-  if (!/^[A-Za-z0-9_-]{1,64}$/.test(context.params.paymentId)) {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(params.paymentId)) {
     return NextResponse.json({ error: 'Identificador de pagamento inválido.' }, { status: 400 });
   }
 
@@ -34,7 +35,7 @@ export async function POST(_request: Request, context: { params: { paymentId: st
     const accessToken = typeof credentials.access_token === 'string' ? credentials.access_token.trim() : '';
     if (!accessToken) return NextResponse.json({ error: 'Configure um Access Token válido do Mercado Pago nesta loja.' }, { status: 409 });
 
-    const status = await new MercadoPagoGateway(accessToken).cancelOrder(context.params.paymentId);
+    const status = await new MercadoPagoGateway(accessToken).cancelOrder(params.paymentId);
     return NextResponse.json({ status });
   } catch (error) {
     console.error('Falha ao cancelar cobrança de teste no Mercado Pago:', error);

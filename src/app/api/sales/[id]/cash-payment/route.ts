@@ -21,7 +21,8 @@ const cashPaymentSchema = z.object({
 });
 
 /** Records a cash contribution; an outstanding balance stays pending for Pix confirmation. */
-export async function POST(request: Request, context: { params: { id: string } }) {
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
   const session = await auth();
   const tenantId = session?.user?.tenantId;
   const userId = session?.user?.id;
@@ -32,7 +33,7 @@ export async function POST(request: Request, context: { params: { id: string } }
   const receivedCents = Math.round(parsed.data.amountReceived * 100);
 
   const saleRegister = await prisma.sale.findFirst({
-    where: { id: context.params.id, tenant_id: tenantId },
+    where: { id: params.id, tenant_id: tenantId },
     select: { cash_register_session_id: true },
   });
   const openRegister = saleRegister?.cash_register_session_id ? await prisma.cashRegisterSession.findFirst({
@@ -44,7 +45,7 @@ export async function POST(request: Request, context: { params: { id: string } }
   try {
     const result = await runSerializableTransaction((tx) => completeCashPayment(tx, {
       tenantId,
-      saleId: context.params.id,
+      saleId: params.id,
       idempotencyKey: parsed.data.idempotencyKey,
       receivedCents,
       appliedCents: Math.round(parsed.data.amountApplied * 100),

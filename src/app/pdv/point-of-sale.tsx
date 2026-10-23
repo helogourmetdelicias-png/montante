@@ -53,7 +53,11 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   const paymentButtonRef = useRef<HTMLButtonElement>(null);
   const [saleMode, setSaleMode] = useState<'quick' | 'advanced'>('quick');
   const [quickAmount, setQuickAmount] = useState('');
+  const [quickEntryMode, setQuickEntryMode] = useState<'decimal' | 'cents'>('decimal');
+  const [saleNotes, setSaleNotes] = useState('');
   const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState<string[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discount, setDiscount] = useState('0');
@@ -70,7 +74,6 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   const [customerName, setCustomerName] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<SaleCustomer | null>(null);
   const [customerStepOpen, setCustomerStepOpen] = useState(false);
-  const [customerConfirmed, setCustomerConfirmed] = useState(false);
   const [customerDocument, setCustomerDocument] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerZipCode, setCustomerZipCode] = useState('');
@@ -97,23 +100,27 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
 
   const subtotal = useMemo(() => saleMode === 'quick' ? Number(quickAmount) || 0 : cart.reduce((sum, line) => sum + Number(line.product.price) * line.quantity, 0), [cart, saleMode, quickAmount]);
   const hasSaleValue = saleMode === 'quick' ? Number(quickAmount) > 0 : cart.length > 0;
+  const insufficientStock = saleMode === 'advanced' && cart.some(line => line.quantity > Number(line.product.stockQuantity));
   const discountInput = Math.max(0, Number(discount.replace(',', '.')) || 0);
   const discountValue = Math.min(subtotal, discountMode === 'percent'
     ? Math.round(subtotal * Math.min(100, discountInput)) / 100
     : discountInput);
   const total = Math.max(0, subtotal - discountValue);
   const selectedPayment = paymentOptions.find((option) => option.provider + option.method + option.terminalId === selectedOption);
-  const needsCustomerEmail = selectedPayment?.provider === 'mercadopago' || selectedPayment?.provider === 'split';
+  // Ajustado pela auditoria: identificar provedor Pix subjacente quando selecionada a opção split ("Pix + dinheiro")
+  const effectivePixProvider = selectedPayment?.provider === 'split' ? selectedPayment.pixProvider : selectedPayment?.provider;
+  const needsCustomerEmail = selectedPayment?.provider === 'mercadopago' || (selectedPayment?.provider === 'split' && (effectivePixProvider === 'mercadopago' || !effectivePixProvider));
   const customerEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail);
-  const needsPagarmeCustomer = selectedPayment?.provider === 'pagarme';
-  const needsPagBankCustomer = selectedPayment?.provider === 'pagbank';
+  // Ajustado pela auditoria: exigir campos obrigatórios de comprador conforme o provedor efetivo do Pix (Pagar.me ou PagBank)
+  const needsPagarmeCustomer = effectivePixProvider === 'pagarme';
+  const needsPagBankCustomer = effectivePixProvider === 'pagbank';
   const needsGatewayCustomer = needsPagarmeCustomer || needsPagBankCustomer;
   const customerDocumentLength = customerDocument.replace(/\D/g, '').length;
   const customerPhoneLength = customerPhone.replace(/\D/g, '').length;
   const hasOptionalAddress = Boolean(customerZipCode || customerStreet || customerNumber || customerNeighborhood || customerCity || customerState);
   const optionalAddressComplete = customerZipCode.replace(/\D/g, '').length === 8 && customerStreet.trim() && customerNumber.trim() && customerNeighborhood.trim() && customerCity.trim() && customerState.trim().length === 2;
   const pagarmeCustomerValid = Boolean(customerName.trim() && customerEmailValid && [11, 14].includes(customerDocumentLength) && (!needsPagarmeCustomer || ([10, 11].includes(customerPhoneLength) && (!hasOptionalAddress || optionalAddressComplete))));
-  const sandboxEmailValid = !((selectedPayment?.provider === 'mercadopago' || selectedPayment?.provider === 'split') && selectedPayment?.environment === 'sandbox') || customerEmail.toLowerCase().endsWith('@testuser.com');
+  const sandboxEmailValid = !((selectedPayment?.provider === 'mercadopago' || (selectedPayment?.provider === 'split' && effectivePixProvider === 'mercadopago')) && selectedPayment?.environment === 'sandbox') || customerEmail.toLowerCase().endsWith('@testuser.com');
   const awaitingPayment = Boolean(saleId && attemptId && ['created', 'pending'].includes(paymentStatus));
   const cashDue = Boolean(saleId && ((selectedPayment?.provider === 'cash' && paymentStatus === 'cash_due') ||
     (selectedPayment?.provider === 'split' && paymentStatus === 'split_cash_due')));
@@ -161,7 +168,6 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
       selectCustomer(null);
     }
     setSaleMode(mode);
-    if (mode === 'advanced') setCustomerConfirmed(false);
     if (!saleDialog.current?.open) saleDialog.current?.showModal();
     requestAnimationFrame(() => (mode === 'quick' ? quickAmountRef : searchRef).current?.focus());
   }
@@ -182,23 +188,27 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   // Debounced search keeps the barcode field responsive without sending a request per keystroke.
   useEffect(() => {
     if (saleMode !== 'advanced') return;
+    const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setLoadingProducts(true);
       try {
-        const params = new URLSearchParams({ limit: '30' });
+        const params = new URLSearchParams({ limit: '30', includeCategories: 'true' });
         if (query.trim()) params.set('q', query.trim());
-        const response = await fetch(`/api/products?${params}`, { cache: 'no-store' });
+        if (category) params.set('category', category);
+        const response = await fetch(`/api/products?${params}`, { cache: 'no-store', signal: controller.signal });
         const result = await response.json();
+        if (controller.signal.aborted) return;
         if (!response.ok) throw new Error(errorMessage(result, 'Não foi possível carregar o catálogo.'));
         setProducts(result.products as Product[]);
+        setCategories(result.categories ?? []);
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : 'Não foi possível carregar o catálogo.');
+        if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : 'Não foi possível carregar o catálogo.');
       } finally {
-        setLoadingProducts(false);
+        if (!controller.signal.aborted) setLoadingProducts(false);
       }
     }, 250);
-    return () => window.clearTimeout(timer);
-  }, [query, saleMode]);
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [query, saleMode, category]);
 
   // Payment options contain only public labels and capability metadata, never gateway credentials.
   useEffect(() => {
@@ -271,6 +281,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   }, [saleId, busy]);
 
   function setQuantity(productId: string, quantity: number) {
+    if (saleId || busy || !Number.isFinite(quantity)) return;
     if (quantity <= 0) {
       setCart((current) => current.filter((line) => line.product.id !== productId));
       return;
@@ -328,10 +339,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   }
 
   async function startCheckout() {
-    if (saleMode === 'advanced' && !saleId && !customerConfirmed && cart.length && !busy) {
-      setCustomerStepOpen(true);
-      return;
-    }
+    if (!saleId && insufficientStock) { setMessage('A quantidade solicitada supera o estoque. Ajuste os itens indicados no carrinho.'); return; }
     if ((!saleId && !cashRegisterOpen) || !hasSaleValue || !selectedPayment || busy || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsGatewayCustomer && !pagarmeCustomerValid)) return;
     if (selectedPayment.provider === 'fiado' && !selectedCustomer) { setCustomerStepOpen(true); return; }
     setBusy(true);
@@ -343,9 +351,10 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             idempotencyKey: crypto.randomUUID(),
+            ...(selectedCustomer ? { customerId: selectedCustomer.id } : {}),
+            ...(saleNotes.trim() ? { notes: saleNotes.trim() } : {}),
             ...(saleMode === 'quick' ? { mode: 'quick', quickAmount: Number(quickAmount), items: [] } : {
               mode: 'advanced', discountAmount: Number(discountValue.toFixed(2)),
-              ...(selectedCustomer ? { customerId: selectedCustomer.id } : {}),
               items: cart.map(({ product, quantity }) => ({ productId: product.id, quantity })),
             }),
           }),
@@ -464,8 +473,10 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   }
 
   async function confirmSplitCash() {
+    // Ajustado pela auditoria: validar dados obrigatórios do cliente no split quando o provedor Pix for Pagar.me ou PagBank
     if (!saleId || !cashDue || !cashAttemptKey || cashChangeCents === null || splitPixBalanceCents <= 0 || busy ||
-      (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid))) return;
+      (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) ||
+      (needsGatewayCustomer && !pagarmeCustomerValid)) return;
     setBusy(true);
     setMessage('');
     try {
@@ -527,7 +538,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
 
   function resetSale() {
     setCustomerStepOpen(false);
-    setCustomerConfirmed(false);
+    setSaleNotes('');
     setCart([]);
     setQuickAmount('');
     setDiscount('0');
@@ -576,7 +587,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
           <div><h2 className="text-2xl font-semibold tracking-tight">Nova venda</h2><p className="mt-1 text-sm text-slate-500">Escolha como deseja vender. Os atalhos também funcionam pelo teclado.</p></div>
           {!cashRegisterOpen && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{registerNeedsClosing ? 'Feche o caixa do dia anterior e abra o caixa de hoje para iniciar novas vendas.' : 'Abertura do caixa de hoje obrigatória para iniciar vendas.'} <a href="/caixa" className="font-semibold underline">{registerNeedsClosing ? 'Fechar caixa anterior' : 'Abrir caixa de hoje'}</a></div>}
           <div className="grid gap-3 sm:grid-cols-2">
-            <Button ref={quickButtonRef} type="button" variant={saleMode === 'quick' ? 'default' : 'outline'} disabled={busy || Boolean(saleId)} onClick={() => openSaleDialog('quick')} className="h-auto min-h-24 flex-col gap-2 whitespace-normal rounded-2xl" aria-keyshortcuts="F1"><span className="text-lg font-semibold">F1 · Venda rápida</span><span className="text-sm font-normal">Valor livre, sem produto e sem cadastro de cliente</span></Button>
+            <Button ref={quickButtonRef} type="button" variant={saleMode === 'quick' ? 'default' : 'outline'} disabled={busy || Boolean(saleId)} onClick={() => openSaleDialog('quick')} className="h-auto min-h-24 flex-col gap-2 whitespace-normal rounded-2xl" aria-keyshortcuts="F1"><span className="text-lg font-semibold">F1 · Venda rápida</span><span className="text-sm font-normal">Valor livre, sem produto e com cliente opcional</span></Button>
             <Button ref={advancedButtonRef} type="button" variant={saleMode === 'advanced' ? 'default' : 'outline'} disabled={busy || Boolean(saleId)} onClick={() => openSaleDialog('advanced')} className="h-auto min-h-24 flex-col gap-2 whitespace-normal rounded-2xl" aria-keyshortcuts="F2"><span className="text-lg font-semibold">F2 · Venda avançada</span><span className="text-sm font-normal">Selecionar produtos e cliente opcional</span></Button>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
@@ -590,7 +601,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
         <aside className="h-fit rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-5">
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-semibold">{saleMode === 'quick' ? 'Venda rápida' : 'Carrinho'}</h2><p className="text-sm text-slate-500">{saleMode === 'quick' ? 'Valor livre' : `${cart.length} ${cart.length === 1 ? 'item' : 'itens'}`}</p></div><button type="button" onClick={resetSale} disabled={!hasSaleValue || busy || Boolean(saleId)} className="text-sm font-medium text-slate-500 hover:text-red-600 disabled:opacity-40">Limpar</button></div>
           <div className="max-h-[min(46vh,480px)] min-h-40 overflow-y-auto px-5">
-            {saleMode === 'quick' ? <div className="flex h-40 flex-col items-center justify-center gap-2 text-center"><p className="font-medium">Venda sem produto cadastrado</p><p className="text-2xl font-semibold tabular-nums">{money(subtotal)}</p><p className="text-xs text-slate-500">Sem movimentação de estoque</p></div> : !cart.length ? <div className="flex h-40 flex-col items-center justify-center text-center"><ShoppingBag className="mb-2 text-slate-300" size={28} /><p className="text-sm text-slate-500">Adicione produtos para iniciar a venda.</p></div> : <ul className="divide-y divide-slate-100">{cart.map(({ product, quantity }) => <li key={product.id} className="py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium leading-5">{product.name}</p><p className="mt-1 text-xs text-slate-500">{money(Number(product.price))} / {product.unitOfMeasure}</p></div><button type="button" onClick={() => setQuantity(product.id, 0)} disabled={Boolean(saleId)} aria-label={`Remover ${product.name}`} className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30"><Trash2 size={16} /></button></div><div className="mt-3 flex items-center justify-between"><div className="flex items-center rounded-lg border border-slate-200"><button type="button" onClick={() => setQuantity(product.id, quantity - (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Diminuir quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Minus size={15} /></button><input aria-label={`Quantidade de ${product.name}`} type="number" min={product.sellByFraction ? '0.001' : '1'} step={product.sellByFraction ? '0.001' : '1'} value={quantity} disabled={Boolean(saleId)} onChange={(event) => setQuantity(product.id, Number(event.target.value))} className="w-16 border-x border-slate-200 py-1 text-center text-sm tabular-nums outline-none disabled:bg-slate-50" /><button type="button" onClick={() => setQuantity(product.id, quantity + (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Aumentar quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Plus size={15} /></button></div><span className="font-semibold tabular-nums">{money(Number(product.price) * quantity)}</span></div><p className="mt-1 text-right text-[11px] text-slate-400">{product.sellByFraction ? 'Venda fracionada' : 'Unidade inteira'}</p></li>)}</ul>}
+            {saleMode === 'quick' ? <div className="flex h-40 flex-col items-center justify-center gap-2 text-center"><p className="font-medium">{saleNotes.trim() || 'Venda sem produto cadastrado'}</p><p className="text-2xl font-semibold tabular-nums">{money(subtotal)}</p><p className="text-xs text-slate-500">Sem movimentação de estoque</p></div> : !cart.length ? <div className="flex h-40 flex-col items-center justify-center text-center"><ShoppingBag className="mb-2 text-slate-300" size={28} /><p className="text-sm text-slate-500">Adicione produtos para iniciar a venda.</p></div> : <ul className="divide-y divide-slate-100">{cart.map(({ product, quantity }) => <li key={product.id} className="py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium leading-5">{product.name}</p><p className="mt-1 text-xs text-slate-500">{money(Number(product.price))} / {product.unitOfMeasure}</p></div><button type="button" onClick={() => setQuantity(product.id, 0)} disabled={Boolean(saleId)} aria-label={`Remover ${product.name}`} className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30"><Trash2 size={16} /></button></div><div className="mt-3 flex items-center justify-between"><div className="flex items-center rounded-lg border border-slate-200"><button type="button" onClick={() => setQuantity(product.id, quantity - (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Diminuir quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Minus size={15} /></button><input aria-label={`Quantidade de ${product.name}`} type="number" min={product.sellByFraction ? '0.001' : '1'} step={product.sellByFraction ? '0.001' : '1'} value={quantity} disabled={Boolean(saleId)} onChange={(event) => setQuantity(product.id, Number(event.target.value))} className="w-16 border-x border-slate-200 py-1 text-center text-sm tabular-nums outline-none disabled:bg-slate-50" /><button type="button" onClick={() => setQuantity(product.id, quantity + (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Aumentar quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Plus size={15} /></button></div><span className="font-semibold tabular-nums">{money(Number(product.price) * quantity)}</span></div><p className="mt-1 text-right text-[11px] text-slate-400">{product.sellByFraction ? 'Venda fracionada' : 'Unidade inteira'}</p></li>)}</ul>}
           </div>
 
           <div className="space-y-3 border-t border-slate-100 px-5 py-4">
@@ -603,12 +614,16 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
           </div>
 
           {!awaitingPayment && !cashDue && !completed && <div className="px-5 pb-5">
-            {(saleMode === 'advanced' || selectedPayment?.provider === 'fiado') && <p className="mb-3 text-sm text-slate-600">Cliente: {selectedCustomer?.name ?? 'Não identificado'} <button type="button" disabled={Boolean(saleId) || busy} onClick={() => setCustomerStepOpen(true)} className="ml-2 underline">Alterar</button></p>}
+            <p className="mb-3 text-sm text-slate-600">Cliente: {selectedCustomer?.name ?? 'Não identificado'} <button type="button" disabled={Boolean(saleId) || busy} onClick={() => setCustomerStepOpen(true)} className="ml-2 underline">{selectedCustomer ? 'Alterar' : 'Adicionar cliente (opcional)'}</button></p>
+            {selectedCustomer && <p className="mb-3 text-xs text-slate-500">{selectedCustomer.phone || 'Telefone não informado'}{canManageBrand && <> · <a href={`/clientes/${selectedCustomer.id}`} target="_blank" rel="noreferrer" className="underline">Ver histórico de compras</a></>}</p>}
+            {saleMode === 'advanced' && <label className="mb-3 block text-sm">Observação / referência (opcional)<Input value={saleNotes} disabled={Boolean(saleId) || busy} onChange={event => setSaleNotes(event.target.value)} maxLength={1000} placeholder="Ex.: Orçamento 123 · Entregar à tarde" className="mt-1" /></label>}
+            {insufficientStock && !saleId && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">Estoque insuficiente: {cart.filter(line => line.quantity > Number(line.product.stockQuantity)).map(line => `${line.product.name} (solicitado: ${line.quantity}; disponível: ${line.product.stockQuantity} ${line.product.unitOfMeasure})`).join('; ')}. Ajuste a quantidade no carrinho.</p>}
             <label className="mb-2 block text-sm font-medium" htmlFor="payment-method">Forma de pagamento</label>
             {paymentOptions.length ? <div className="relative"><select id="payment-method" value={selectedOption} onChange={(event) => setSelectedOption(event.target.value)} disabled={!paymentEditable} className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-9 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-50">{paymentOptions.map((option) => { const value = option.provider + option.method + option.terminalId; const methodLabel = option.provider === 'fiado' ? 'Pagar depois' : option.provider === 'split' ? 'Dividido' : option.method === 'pix' ? 'Pix' : option.method === 'cash' ? 'Dinheiro' : option.method === 'credit_card' ? 'Crédito' : 'Débito'; return <option key={value} value={value}>{option.label} · {methodLabel}</option>; })}</select><ChevronDown className="pointer-events-none absolute right-3 top-3 text-slate-400" size={18} /></div> : <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Nenhuma forma de pagamento está ativa. Peça ao responsável para configurar uma opção.</p>}
             {needsCustomerEmail && <label className="mt-3 block text-sm font-medium" htmlFor="customer-email">E-mail do comprador<Input id="customer-email" type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder={selectedPayment.environment === 'sandbox' ? 'comprador@testuser.com' : 'comprador@exemplo.com'} disabled={!paymentEditable} className="mt-2 h-10" required />{selectedPayment.environment === 'sandbox' && <span className="mt-1 block text-xs font-normal text-slate-500">No Sandbox, use um e-mail de teste com final @testuser.com.</span>}</label>}
             {needsGatewayCustomer && <fieldset className="mt-3 space-y-3 rounded-xl border border-slate-200 p-3"><legend className="px-1 text-sm font-medium">Dados para cobrança Pix {needsPagBankCustomer ? 'PagBank' : 'Pagar.me'}</legend><p className="text-xs text-slate-500">{needsPagBankCustomer ? 'Para gerar o Pix PagBank, informe nome, e-mail e CPF/CNPJ do comprador.' : 'Para gerar o Pix, informe nome, e-mail, CPF/CNPJ e celular com DDD. Algumas contas Pagar.me PSP também exigem endereço; deixe os dados extras fechados se não forem solicitados.'}</p><div className="grid grid-cols-2 gap-2"><Input autoComplete="name" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Nome completo" aria-label="Nome completo do comprador" className="col-span-2 h-10" /><Input type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="E-mail" aria-label="E-mail do comprador" className="h-10" /><Input value={customerDocument} onChange={(event) => setCustomerDocument(event.target.value)} placeholder="CPF/CNPJ" aria-label="CPF ou CNPJ do comprador" className="h-10" />{needsPagarmeCustomer && <Input type="tel" autoComplete="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Celular com DDD" aria-label="Celular do comprador" className="col-span-2 h-10" />}</div>{needsPagarmeCustomer && <details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-medium text-slate-700">Endereço (se exigido pela conta Pagar.me)</summary><div className="mt-3 grid grid-cols-2 gap-2"><Input autoComplete="postal-code" value={customerZipCode} onChange={(event) => setCustomerZipCode(event.target.value)} placeholder="CEP" aria-label="CEP do comprador" className="h-10" /><Input autoComplete="address-level2" value={customerCity} onChange={(event) => setCustomerCity(event.target.value)} placeholder="Cidade" aria-label="Cidade do comprador" className="h-10" /><Input autoComplete="address-line1" value={customerStreet} onChange={(event) => setCustomerStreet(event.target.value)} placeholder="Rua" aria-label="Rua do comprador" className="h-10" /><Input value={customerNumber} onChange={(event) => setCustomerNumber(event.target.value)} placeholder="Número" aria-label="Número do endereço" className="h-10" /><Input value={customerNeighborhood} onChange={(event) => setCustomerNeighborhood(event.target.value)} placeholder="Bairro" aria-label="Bairro do comprador" className="h-10" /><Input value={customerState} onChange={(event) => setCustomerState(event.target.value.toUpperCase().slice(0, 2))} placeholder="UF" aria-label="Estado do comprador" maxLength={2} className="h-10" /></div></details>}{needsPagarmeCustomer && hasOptionalAddress && !optionalAddressComplete && <p className="text-xs text-red-600">Preencha todos os campos do endereço ou deixe-os vazios.</p>}</fieldset>}
-            <Button ref={paymentButtonRef} type="button" onClick={startCheckout} disabled={(!saleId && !cashRegisterOpen) || !hasSaleValue || !selectedPayment || busy || total <= 0 || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsGatewayCustomer && !pagarmeCustomerValid)} className="mt-4 h-12 w-full rounded-xl bg-orange-600 text-base font-semibold hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={18} /> : <CreditCard className="mr-2" size={18} />}{selectedPayment?.provider === 'fiado' ? `Registrar fiado de ${money(total)}` : saleId ? 'Tentar pagamento' : `Cobrar ${money(total)}`}</Button>
+            {hasSaleValue && selectedPayment && <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm" aria-label="Resumo antes da cobrança"><p className="font-semibold">Confira antes de cobrar</p><p>{saleMode === 'quick' ? 'Venda rápida' : `${cart.length} produtos`} · {selectedCustomer?.name ?? 'Cliente não identificado'}</p>{saleNotes.trim() && <p className="break-words">{saleNotes}</p>}<p>Pagamento: <strong>{selectedPayment.label}</strong></p><p>Total: <strong>{money(amountDue)}</strong></p></div>}
+            <Button ref={paymentButtonRef} type="button" onClick={startCheckout} disabled={(!saleId && (!cashRegisterOpen || insufficientStock)) || !hasSaleValue || !selectedPayment || busy || total <= 0 || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsGatewayCustomer && !pagarmeCustomerValid)} className="mt-4 h-12 w-full rounded-xl bg-orange-600 text-base font-semibold hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={18} /> : <CreditCard className="mr-2" size={18} />}{selectedPayment?.provider === 'fiado' ? `Registrar fiado de ${money(total)}` : saleId ? 'Tentar pagamento' : `Cobrar ${money(total)}`}</Button>
             {saleId && !awaitingPayment && <button type="button" onClick={() => void cancelSale()} disabled={busy} className="mt-2 w-full py-1 text-sm font-medium text-slate-500 hover:text-red-600">Cancelar venda e liberar estoque</button>}
             <p className="mt-2 text-center text-xs text-slate-500">{saleMode === 'quick' ? 'Venda rápida não movimenta o estoque.' : 'O estoque é reservado ao iniciar a cobrança.'}</p>
           </div>}
@@ -660,8 +675,11 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
           {saleMode === 'quick' ? <form onSubmit={event => { event.preventDefault(); if (Number(quickAmount) > 0) { saleDialog.current?.close(); paymentButtonRef.current?.focus(); } }} className="mx-auto max-w-md space-y-5 py-6">
             <p className="text-sm text-slate-600">Informe apenas o valor. Não é necessário cadastrar produto ou cliente.</p>
             <label htmlFor="quick-sale-amount" className="block text-sm font-medium">Valor da venda (R$)</label>
-            <MoneyInput ref={quickAmountRef} id="quick-sale-amount" value={quickAmount} onValueChange={setQuickAmount} required className="h-20 text-right text-4xl tabular-nums" />
-            <p className="text-sm text-slate-500">Digite 1234 para R$ 12,34.</p>
+            <MoneyInput key={quickEntryMode} ref={quickAmountRef} id="quick-sale-amount" entryMode={quickEntryMode} value={quickAmount} onValueChange={setQuickAmount} required className="h-20 text-right text-4xl tabular-nums" />
+            <label className="block text-sm text-slate-600">Como digitar o valor<select value={quickEntryMode} onChange={event => setQuickEntryMode(event.target.value as 'decimal' | 'cents')} className="mt-1 h-10 w-full rounded-lg border bg-white px-2"><option value="decimal">Com vírgula ou ponto: 12,34 ou 12.34</option><option value="cents">Só números em centavos: 1234 = R$ 12,34</option></select></label>
+            <div className="grid grid-cols-4 gap-2" aria-label="Valores frequentes">{[10, 20, 50, 100].map(value => <Button key={value} type="button" variant="outline" onClick={() => setQuickAmount(value.toFixed(2))}>{money(value)}</Button>)}</div>
+            <label className="block text-sm font-medium">Descrição / observação (opcional)<Input value={saleNotes} onChange={event => setSaleNotes(event.target.value)} maxLength={1000} placeholder="Ex.: Entrega de material · Orçamento 123" className="mt-2" /></label>
+            <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">A venda rápida registra apenas o valor financeiro. Nenhum produto será baixado do estoque.</p>
             <Button type="submit" disabled={Number(quickAmount) <= 0 || !quickAmount} className="h-12 w-full bg-orange-600 hover:bg-orange-700">Continuar para pagamento · {money(total)}</Button>
           </form> : <>
         <section className="min-w-0">
@@ -676,6 +694,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
             <Button type="submit" className="h-12 rounded-xl bg-orange-600 px-5 hover:bg-orange-700"><Search size={18} /><span className="ml-2 hidden sm:inline">Buscar</span></Button>
           </form>
 
+          <label className="mb-4 block text-sm">Categoria<select value={category} onChange={event => setCategory(event.target.value)} className="ml-2 h-10 rounded-lg border bg-white px-3"><option value="">Todas as categorias</option>{categories.map(name => <option key={name} value={name}>{name}</option>)}<option value="__uncategorized">Sem categoria</option></select></label>
           <div className="mb-3 flex items-center justify-between px-1"><h3 className="font-semibold">Produtos</h3><span className="text-sm text-slate-500">{loadingProducts ? 'Buscando…' : `${products.length} encontrados`}</span></div>
           {products.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {products.map((product) => {
@@ -684,7 +703,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
                 <div className="mb-5 flex items-start justify-between gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-700"><PackageSearch size={21} /></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${stock > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{stock > 0 ? `${product.stockQuantity} ${product.unitOfMeasure} em estoque` : 'Sem estoque'}</span></div>
                 <h4 className="line-clamp-2 min-h-12 font-semibold leading-6">{product.name}</h4>
                 <p className="mt-1 truncate text-xs text-slate-500">{product.sku ? `SKU ${product.sku}` : 'Sem SKU'}{product.stockAisle ? ` · Corredor ${product.stockAisle}` : ''}{product.stockShelf ? ` · Prateleira ${product.stockShelf}` : ''}</p>
-                <div className="mt-4 flex items-end justify-between"><p className="text-lg font-semibold tabular-nums">{money(Number(product.price))}<span className="ml-1 text-xs font-normal text-slate-500">/ {product.unitOfMeasure}</span></p><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700 transition group-hover:bg-orange-600 group-hover:text-white"><Plus size={18} /></span></div>
+                <div className="mt-4 flex items-end justify-between"><p className="text-lg font-semibold tabular-nums">{money(Number(product.price))}<span className="ml-1 text-xs font-normal text-slate-500">/ {product.unitOfMeasure}</span></p><span className="flex h-8 items-center justify-center gap-1 rounded-lg bg-orange-50 px-2 text-sm font-medium text-orange-700 transition group-hover:bg-orange-600 group-hover:text-white"><Plus size={18} />Adicionar</span></div>
               </button>;
             })}
           </div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center"><div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500"><PackageSearch size={23} /></div><p className="font-medium">{loadingProducts ? 'Carregando catálogo…' : 'Nenhum produto encontrado'}</p><p className="mt-1 text-sm text-slate-500">Tente buscar por outro nome, SKU ou código de barras.</p></div>}
@@ -692,10 +711,10 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
 
           </>}
         </div>
-        {saleMode === 'advanced' && <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-white p-5"><p>{cart.length} produtos · <strong>{money(total)}</strong></p><Button type="button" disabled={!cart.length} onClick={() => { saleDialog.current?.close(); setCustomerStepOpen(true); }} className="bg-orange-600 hover:bg-orange-700">Continuar para cliente</Button></footer>}
+        {saleMode === 'advanced' && <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-white p-5"><p>{cart.length} produtos · <strong>{money(total)}</strong></p><Button type="button" disabled={!cart.length} onClick={() => { saleDialog.current?.close(); paymentButtonRef.current?.focus(); }} className="bg-orange-600 hover:bg-orange-700">Continuar para pagamento</Button></footer>}
       </dialog>
 
-      {customerStepOpen && <CustomerCheckout selected={selectedCustomer} requireCustomer={selectedPayment?.provider === 'fiado'} canCreate={canManageBrand} onContinue={customer => { selectCustomer(customer); setCustomerConfirmed(true); setCustomerStepOpen(false); requestAnimationFrame(() => paymentButtonRef.current?.focus()); }} onBack={() => { setCustomerStepOpen(false); if (saleMode === 'advanced') requestAnimationFrame(() => openSaleDialog('advanced')); }} />}
+      {customerStepOpen && <CustomerCheckout selected={selectedCustomer} requireCustomer={selectedPayment?.provider === 'fiado'} canCreate={canManageBrand} onContinue={customer => { selectCustomer(customer); setCustomerStepOpen(false); requestAnimationFrame(() => paymentButtonRef.current?.focus()); }} onBack={() => { setCustomerStepOpen(false); requestAnimationFrame(() => paymentButtonRef.current?.focus()); }} />}
 
       {message && <div role="status" className="fixed bottom-5 left-1/2 z-40 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl"><CircleAlert size={17} />{message}<button type="button" aria-label="Fechar aviso" onClick={() => setMessage('')} className="ml-2 text-slate-300 hover:text-white"><X size={16} /></button></div>}
 

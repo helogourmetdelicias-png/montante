@@ -42,7 +42,8 @@ export async function GET() {
   })));
 
   const cashOption = { provider: 'cash', label: 'Dinheiro no caixa', method: 'cash', channel: 'in_person' };
-  const splitOption = methods.some(({ provider, method }) => ['mercadopago', 'pagarme'].includes(provider) && method === 'pix')
+  // Ajustado pela auditoria: incluir pagbank junto a mercadopago e pagarme para oferta de pagamento misto (Pix + dinheiro)
+  const splitOption = methods.some(({ provider, method }) => ['mercadopago', 'pagarme', 'pagbank'].includes(provider) && method === 'pix')
     ? { provider: 'split', label: 'Pix + dinheiro', method: 'mixed', channel: 'in_person', environment: configuration?.environment, pixProvider: configuration?.provider }
     : null;
   const canSimulatePixApproval = process.env.NODE_ENV !== 'production' &&

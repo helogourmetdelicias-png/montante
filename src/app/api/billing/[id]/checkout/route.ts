@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { billingMercadoPago } from '@/lib/billing-payment';
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
   const session = await auth();
   if (!session?.user?.tenantId) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
   if (!['owner', 'admin'].includes(session.user.role)) return NextResponse.json({ error: 'Sem permissão.' }, { status: 403 });

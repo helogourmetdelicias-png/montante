@@ -3,7 +3,8 @@ import { completeCreditSale, CreditError } from '@/lib/credit';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
   const session = await auth();
   if (!session?.user?.tenantId || !session.user.id) return NextResponse.json({ error: 'Entre na sua conta.' }, { status: 401 });
   const parsed = z.object({ customerId: z.string().cuid() }).strict().safeParse(await request.json().catch(() => null));

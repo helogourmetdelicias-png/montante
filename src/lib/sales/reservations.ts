@@ -30,6 +30,9 @@ export async function releaseExpiredSales(tx: Transaction, tenantId: string, now
           OR: [
             { provider: 'mercadopago', status: { in: ['CREATED', 'PENDING'] } },
             { provider: 'mercadopago', status: 'APPROVED', external_order_id: { not: null } },
+            // Ajustado pela auditoria: pagarme incluído para manter estoque protegido enquanto houver cobrança Pix ativa
+            { provider: 'pagarme', status: { in: ['CREATED', 'PENDING'] } },
+            { provider: 'pagarme', status: 'APPROVED', external_order_id: { not: null } },
             { provider: 'pagbank', status: { in: ['CREATED', 'PENDING', 'APPROVED'] } },
             { provider: 'cash', status: 'APPROVED' },
           ],

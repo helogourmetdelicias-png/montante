@@ -172,3 +172,43 @@ test('Pagar.me gives an actionable error when the order has no Pix or refusal de
     globalThis.fetch = originalFetch;
   }
 });
+
+// Ajustado pela auditoria: teste de conciliação e cancelamento de pedidos Pagar.me
+test('Pagar.me cancelOrder handles cancelled, approved, and pending reconciliation states', async () => {
+  const originalFetch = globalThis.fetch;
+  const gateway = new PagarMeGateway('sk_test_example');
+
+  try {
+    // 1. Pedido já pago retorna 'approved'
+    globalThis.fetch = async () => Response.json({ id: 'or_paid', status: 'paid', charges: [] });
+    assert.equal(await gateway.cancelOrder('or_paid'), 'approved');
+
+    // 2. Pedido já cancelado retorna 'cancelled'
+    globalThis.fetch = async () => Response.json({ id: 'or_canceled', status: 'canceled', charges: [] });
+    assert.equal(await gateway.cancelOrder('or_canceled'), 'cancelled');
+
+    // 3. Pedido com cobrança aberta cancelada com sucesso via DELETE /charges
+    let deleteCalled = false;
+    globalThis.fetch = async (url, options) => {
+      if (options?.method === 'DELETE') {
+        deleteCalled = true;
+        assert.ok(url.includes('/charges/ch_123'));
+        return new Response(null, { status: 200 });
+      }
+      return Response.json({ id: 'or_pending', status: 'pending', charges: [{ id: 'ch_123' }] });
+    };
+    assert.equal(await gateway.cancelOrder('or_pending'), 'cancelled');
+    assert.ok(deleteCalled);
+
+    // 4. Pedido pendente cuja cobrança não pôde ser cancelada permanece 'pending' para proteger estoque
+    globalThis.fetch = async (url, options) => {
+      if (options?.method === 'DELETE') {
+        return new Response(JSON.stringify({ error: 'cannot cancel' }), { status: 400 });
+      }
+      return Response.json({ id: 'or_pending', status: 'pending', charges: [{ id: 'ch_456' }] });
+    };
+    assert.equal(await gateway.cancelOrder('or_pending'), 'pending');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
