@@ -360,7 +360,7 @@ Detalhes e dependências de cada item pendente constam no retorno acrescentado a
 - [x] Validação: 73 testes existentes, 22 Vitest e 6 testes Playwright de regressão aprovados; integração de banco de O.S. e dos sete nichos aprovada. TypeScript e build de produção aprovados, com os três avisos de lint preexistentes.
 - [x] Migração aditiva 20261025000100_service_orders aplicada e conferida no banco; fixtures isoladas removidas.
 - [x] Playwright ponta a ponta aprovado contra a aplicação local compilada: login real, entrada/orçamento, O.S. pronta, recebimento em dinheiro, entrega, senha removida, estoque, saldo do caixa e comprovante. Todas as fixtures removidas; nenhum pagamento bancário real.
-- [ ] Publicação no projeto principal em andamento; registrar confirmação ao concluir.
+- [x] Publicação do módulo confirmada em 25/10/2026 no commit 1f53e40: Vercel montante-um2r concluiu o deploy 8uHxcfZSjF3ZpZM3DooyCSn8aPna. Cadastro público respondeu 200 com PHONE_REPAIR e IT_SUPPORT; páginas e API de O.S. preservaram a exigência de login. Teste autenticado de ponta a ponta realizado localmente; nenhuma O.S. real criada em produção.
 
 - [x] Integração de O.S. com caixa/PDV: orçamento fixo, apenas uma venda ativa por O.S., confirmação integral para entrega, baixa transacional de peças uma única vez e comprovante com peças/mão de obra. Cancelamento da cobrança não devolve estoque que não foi baixado.
 - [x] Aprovação online sem estoque preservada para conciliação após reposição, sem nova cobrança. Senha do aparelho removida ao concluir/cancelar. Guia operacional e limites em docs/ordens-servico.md.
