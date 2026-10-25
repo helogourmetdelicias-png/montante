@@ -19,6 +19,7 @@ export async function completeCreditSale(tenantId: string, userId: string, saleI
     }
     const drawer = await openDrawer(tx, tenantId, userId);
     const sale = await tx.sale.findFirst({ where: { id: saleId, tenant_id: tenantId }, include: { payment_attempts: true } });
+    if (sale?.service_order_id) throw new CreditError('Receba a O.S. pelo caixa. A entrega exige pagamento integral.');
     if (!sale || sale.status !== 'pending' || sale.cash_register_session_id !== drawer.id || !sale.expires_at || sale.expires_at <= new Date()) throw new CreditError('Venda indisponível, expirada ou pertencente a outro caixa.');
     if (sale.payment_attempts.length) throw new CreditError('Esta venda já possui tentativa de pagamento. Concilie/cancele a venda antes de registrar uma nova compra em Fiado.');
     const customer = await tx.customer.findFirst({ where: { id: customerId, tenant_id: tenantId, isActive: true } });

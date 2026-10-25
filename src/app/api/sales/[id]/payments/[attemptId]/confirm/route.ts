@@ -1,6 +1,7 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { completeServiceOrder } from '@/lib/service-orders/complete';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,7 +37,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   const updated = await prisma.$transaction(async (tx) => {
     const sale = await tx.sale.findFirst({
       where: { id: attempt.sale_id, tenant_id: tenantId, status: 'pending', OR: [{ expires_at: null }, { expires_at: { gt: now } }] },
-      select: { id: true },
+      select: { id: true, service_order_id: true },
     });
     if (!sale) return false;
 
@@ -46,10 +47,12 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     });
     if (changed.count !== 1) return false;
 
-    await tx.sale.updateMany({
+    const completion = await tx.sale.updateMany({
       where: { id: sale.id, tenant_id: tenantId, status: 'pending' },
       data: { status: 'completed', payment_method: attempt.method.toLowerCase(), expires_at: null, sold_at: now },
     });
+    if (completion.count !== 1) throw new Error('A venda já foi processada.');
+    if (sale.service_order_id) await completeServiceOrder(tx, tenantId, sale.service_order_id, sale.id, now);
     return true;
   });
 

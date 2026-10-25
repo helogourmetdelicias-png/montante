@@ -1,4 +1,5 @@
 import { PaymentAttemptStatus, Prisma } from '@prisma/client';
+import { completeServiceOrder } from '../service-orders/complete.ts';
 
 type Transaction = Prisma.TransactionClient;
 
@@ -29,7 +30,7 @@ const ATTEMPT_STATUS_BY_RESULT: Record<PaymentResult['status'], PaymentAttemptSt
 export async function applyPaymentResult(tx: Transaction, input: ApplyPaymentResultInput) {
   if (input.provider === 'pagbank') {
     const approved = await tx.paymentAttempt.findFirst({ where: { id: input.attemptId, tenant_id: input.tenantId, sale_id: input.saleId, provider: 'pagbank', status: 'APPROVED' } });
-    if (approved) return { attempt: approved, saleCompleted: Boolean(await tx.sale.findFirst({ where: { id: input.saleId, tenant_id: input.tenantId, status: 'completed' }, select: { id: true } })) };
+    if (approved && await tx.sale.findFirst({ where: { id: input.saleId, tenant_id: input.tenantId, status: 'completed' }, select: { id: true } })) return { attempt: approved, saleCompleted: true };
   }
   const now = input.now ?? new Date();
   const approved = input.result.status === 'approved';
@@ -49,7 +50,7 @@ export async function applyPaymentResult(tx: Transaction, input: ApplyPaymentRes
     const [sale, approvedPayments, cashPayment] = await Promise.all([
       tx.sale.findFirst({
         where: { id: input.saleId, tenant_id: input.tenantId, status: 'pending' },
-        select: { total_amount: true },
+        select: { total_amount: true, service_order_id: true, sold_at: true },
       }),
       tx.paymentAttempt.aggregate({
         where: { tenant_id: input.tenantId, sale_id: input.saleId, status: PaymentAttemptStatus.APPROVED },
@@ -77,6 +78,13 @@ export async function applyPaymentResult(tx: Transaction, input: ApplyPaymentRes
         },
       });
       saleCompleted = completion.count === 1;
+      if (saleCompleted && sale.service_order_id) {
+        const delivered = await completeServiceOrder(tx, input.tenantId, sale.service_order_id, input.saleId, now, true);
+        if (!delivered) {
+          await tx.sale.updateMany({ where: { id: input.saleId, tenant_id: input.tenantId, status: 'completed' }, data: { status: 'pending', sold_at: sale.sold_at, payment_method: null, expires_at: null } });
+          saleCompleted = false;
+        }
+      }
     }
   }
 

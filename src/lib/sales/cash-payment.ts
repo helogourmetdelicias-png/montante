@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import type { Prisma as PrismaTypes } from '@prisma/client';
+import { completeServiceOrder } from '../service-orders/complete.ts';
 
 type Transaction = PrismaTypes.TransactionClient;
 
@@ -73,6 +74,7 @@ export async function completeCashPayment(tx: Transaction, input: CompleteCashPa
       amount_received: true,
       change_amount: true,
       expires_at: true,
+      service_order_id: true,
     },
   });
   if (!sale) return { state: 'not_found' as const };
@@ -130,6 +132,7 @@ export async function completeCashPayment(tx: Transaction, input: CompleteCashPa
     },
   });
   if (update.count !== 1) throw new Error('A venda não pôde ser atualizada após registrar o dinheiro.');
+  if (remainingCents === 0 && sale.service_order_id) await completeServiceOrder(tx, input.tenantId, sale.service_order_id, sale.id, now);
 
   return {
     state: 'recorded' as const,

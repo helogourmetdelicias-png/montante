@@ -21,6 +21,8 @@ const NICHE_ATTRIBUTE_KEYS: Record<BusinessNiche, ReadonlyArray<keyof ProductAtt
   BEVERAGES: ['packaging', 'volume', 'requiresContainer', 'containerValue'],
   CONSTRUCTION: [],
   OTHER: [],
+  PHONE_REPAIR: [],
+  IT_SUPPORT: [],
 };
 
 export function getNicheAttributeKeys(niche: BusinessNiche | null) {

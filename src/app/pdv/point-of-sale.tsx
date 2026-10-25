@@ -29,7 +29,7 @@ type Product = {
 
 type CartLine = { product: Product; quantity: number };
 type PaymentOption = { provider: string; label: string; method: string; channel: string; terminalId?: string; environment?: string; pixProvider?: string };
-type Props = { storeName: string; canManageBrand: boolean; operatorName: string };
+type Props = { storeName: string; canManageBrand: boolean; operatorName: string; initialServiceSale?: { id: string; total: string; notes: string; orderId: string } };
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -44,7 +44,7 @@ function errorMessage(payload: unknown, fallback: string) {
 }
 
 /** One-screen checkout: searchable catalog on the left, live cart and payment on the right. */
-export default function PointOfSale({ storeName, canManageBrand, operatorName }: Props) {
+export default function PointOfSale({ storeName, canManageBrand, operatorName, initialServiceSale }: Props) {
   const searchRef = useRef<HTMLInputElement>(null);
   const saleDialog = useRef<HTMLDialogElement>(null);
   const quickAmountRef = useRef<HTMLInputElement>(null);
@@ -52,9 +52,9 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   const advancedButtonRef = useRef<HTMLButtonElement>(null);
   const paymentButtonRef = useRef<HTMLButtonElement>(null);
   const [saleMode, setSaleMode] = useState<'quick' | 'advanced'>('quick');
-  const [quickAmount, setQuickAmount] = useState('');
+  const [quickAmount, setQuickAmount] = useState(initialServiceSale?.total ?? '');
   const [quickEntryMode, setQuickEntryMode] = useState<'decimal' | 'cents'>('decimal');
-  const [saleNotes, setSaleNotes] = useState('');
+  const [saleNotes, setSaleNotes] = useState(initialServiceSale?.notes ?? '');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
@@ -85,12 +85,12 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   const [busy, setBusy] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [message, setMessage] = useState('');
-  const [saleId, setSaleId] = useState('');
+  const [saleId, setSaleId] = useState(initialServiceSale?.id ?? '');
   const [attemptId, setAttemptId] = useState('');
   const [payment, setPayment] = useState<{ pixQrCode?: string; pixQrCodeUrl?: string; pixCopyPaste?: string; paymentUrl?: string } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('');
-  const [saleTotal, setSaleTotal] = useState<number | null>(null);
+  const [saleTotal, setSaleTotal] = useState<number | null>(initialServiceSale ? Number(initialServiceSale.total) : null);
   const [cashReceived, setCashReceived] = useState('');
   const [cashChange, setCashChange] = useState<number | null>(null);
   const [cashApplied, setCashApplied] = useState<number | null>(null);
@@ -216,7 +216,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok) throw new Error(errorMessage(result, 'Não foi possível carregar as formas de pagamento.'));
-        setPaymentOptions(result.options as PaymentOption[]);
+        setPaymentOptions((result.options as PaymentOption[]).filter(option => !initialServiceSale || option.provider !== 'fiado'));
         setCanSimulatePixApproval(result.canSimulatePixApproval === true);
         setCashRegisterOpenedAt(result.cashRegister?.openedAt ?? null);
         if (result.options.length) {
@@ -225,7 +225,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
         }
       })
       .catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Não foi possível carregar pagamentos.'));
-  }, []);
+  }, [initialServiceSale]);
 
   // Refresh drawer state after returning from the register and across midnight.
   useEffect(() => {
@@ -537,6 +537,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
   }
 
   function resetSale() {
+    if (initialServiceSale) { window.location.assign(`/ordens-servico/${initialServiceSale.orderId}`); return; }
     setCustomerStepOpen(false);
     setSaleNotes('');
     setCart([]);
@@ -584,6 +585,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
 
       <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_430px] lg:px-8">
         <section className="min-w-0 space-y-5">
+          {initialServiceSale && <div className="rounded-xl border border-orange-200 bg-orange-50 p-4"><h2 className="font-semibold">Recebimento de ordem de serviço</h2><p>{initialServiceSale.notes}</p><p className="mt-2 text-sm">O orçamento está fixo. As peças serão baixadas ao confirmar o pagamento integral.</p><a className="underline" href={`/ordens-servico/${initialServiceSale.orderId}`}>Voltar à O.S.</a></div>}
           <div><h2 className="text-2xl font-semibold tracking-tight">Nova venda</h2><p className="mt-1 text-sm text-slate-500">Escolha como deseja vender. Os atalhos também funcionam pelo teclado.</p></div>
           {!cashRegisterOpen && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{registerNeedsClosing ? 'Feche o caixa do dia anterior e abra o caixa de hoje para iniciar novas vendas.' : 'Abertura do caixa de hoje obrigatória para iniciar vendas.'} <a href="/caixa" className="font-semibold underline">{registerNeedsClosing ? 'Fechar caixa anterior' : 'Abrir caixa de hoje'}</a></div>}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -599,9 +601,9 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
         </section>
 
         <aside className="h-fit rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-5">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-semibold">{saleMode === 'quick' ? 'Venda rápida' : 'Carrinho'}</h2><p className="text-sm text-slate-500">{saleMode === 'quick' ? 'Valor livre' : `${cart.length} ${cart.length === 1 ? 'item' : 'itens'}`}</p></div><button type="button" onClick={resetSale} disabled={!hasSaleValue || busy || Boolean(saleId)} className="text-sm font-medium text-slate-500 hover:text-red-600 disabled:opacity-40">Limpar</button></div>
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-semibold">{initialServiceSale ? 'Recebimento da O.S.' : saleMode === 'quick' ? 'Venda rápida' : 'Carrinho'}</h2><p className="text-sm text-slate-500">{initialServiceSale ? 'Orçamento aprovado' : saleMode === 'quick' ? 'Valor livre' : `${cart.length} ${cart.length === 1 ? 'item' : 'itens'}`}</p></div><button type="button" onClick={resetSale} disabled={!hasSaleValue || busy || Boolean(saleId)} className="text-sm font-medium text-slate-500 hover:text-red-600 disabled:opacity-40">Limpar</button></div>
           <div className="max-h-[min(46vh,480px)] min-h-40 overflow-y-auto px-5">
-            {saleMode === 'quick' ? <div className="flex h-40 flex-col items-center justify-center gap-2 text-center"><p className="font-medium">{saleNotes.trim() || 'Venda sem produto cadastrado'}</p><p className="text-2xl font-semibold tabular-nums">{money(subtotal)}</p><p className="text-xs text-slate-500">Sem movimentação de estoque</p></div> : !cart.length ? <div className="flex h-40 flex-col items-center justify-center text-center"><ShoppingBag className="mb-2 text-slate-300" size={28} /><p className="text-sm text-slate-500">Adicione produtos para iniciar a venda.</p></div> : <ul className="divide-y divide-slate-100">{cart.map(({ product, quantity }) => <li key={product.id} className="py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium leading-5">{product.name}</p><p className="mt-1 text-xs text-slate-500">{money(Number(product.price))} / {product.unitOfMeasure}</p></div><button type="button" onClick={() => setQuantity(product.id, 0)} disabled={Boolean(saleId)} aria-label={`Remover ${product.name}`} className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30"><Trash2 size={16} /></button></div><div className="mt-3 flex items-center justify-between"><div className="flex items-center rounded-lg border border-slate-200"><button type="button" onClick={() => setQuantity(product.id, quantity - (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Diminuir quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Minus size={15} /></button><input aria-label={`Quantidade de ${product.name}`} type="number" min={product.sellByFraction ? '0.001' : '1'} step={product.sellByFraction ? '0.001' : '1'} value={quantity} disabled={Boolean(saleId)} onChange={(event) => setQuantity(product.id, Number(event.target.value))} className="w-16 border-x border-slate-200 py-1 text-center text-sm tabular-nums outline-none disabled:bg-slate-50" /><button type="button" onClick={() => setQuantity(product.id, quantity + (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Aumentar quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Plus size={15} /></button></div><span className="font-semibold tabular-nums">{money(Number(product.price) * quantity)}</span></div><p className="mt-1 text-right text-[11px] text-slate-400">{product.sellByFraction ? 'Venda fracionada' : 'Unidade inteira'}</p></li>)}</ul>}
+            {saleMode === 'quick' ? <div className="flex h-40 flex-col items-center justify-center gap-2 text-center"><p className="font-medium">{saleNotes.trim() || 'Venda sem produto cadastrado'}</p><p className="text-2xl font-semibold tabular-nums">{money(subtotal)}</p><p className="text-xs text-slate-500">{initialServiceSale ? 'Peças baixadas na conclusão paga' : 'Sem movimentação de estoque'}</p></div> : !cart.length ? <div className="flex h-40 flex-col items-center justify-center text-center"><ShoppingBag className="mb-2 text-slate-300" size={28} /><p className="text-sm text-slate-500">Adicione produtos para iniciar a venda.</p></div> : <ul className="divide-y divide-slate-100">{cart.map(({ product, quantity }) => <li key={product.id} className="py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium leading-5">{product.name}</p><p className="mt-1 text-xs text-slate-500">{money(Number(product.price))} / {product.unitOfMeasure}</p></div><button type="button" onClick={() => setQuantity(product.id, 0)} disabled={Boolean(saleId)} aria-label={`Remover ${product.name}`} className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30"><Trash2 size={16} /></button></div><div className="mt-3 flex items-center justify-between"><div className="flex items-center rounded-lg border border-slate-200"><button type="button" onClick={() => setQuantity(product.id, quantity - (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Diminuir quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Minus size={15} /></button><input aria-label={`Quantidade de ${product.name}`} type="number" min={product.sellByFraction ? '0.001' : '1'} step={product.sellByFraction ? '0.001' : '1'} value={quantity} disabled={Boolean(saleId)} onChange={(event) => setQuantity(product.id, Number(event.target.value))} className="w-16 border-x border-slate-200 py-1 text-center text-sm tabular-nums outline-none disabled:bg-slate-50" /><button type="button" onClick={() => setQuantity(product.id, quantity + (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Aumentar quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Plus size={15} /></button></div><span className="font-semibold tabular-nums">{money(Number(product.price) * quantity)}</span></div><p className="mt-1 text-right text-[11px] text-slate-400">{product.sellByFraction ? 'Venda fracionada' : 'Unidade inteira'}</p></li>)}</ul>}
           </div>
 
           <div className="space-y-3 border-t border-slate-100 px-5 py-4">
@@ -625,7 +627,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName }:
             {hasSaleValue && selectedPayment && <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm" aria-label="Resumo antes da cobrança"><p className="font-semibold">Confira antes de cobrar</p><p>{saleMode === 'quick' ? 'Venda rápida' : `${cart.length} produtos`} · {selectedCustomer?.name ?? 'Cliente não identificado'}</p>{saleNotes.trim() && <p className="break-words">{saleNotes}</p>}<p>Pagamento: <strong>{selectedPayment.label}</strong></p><p>Total: <strong>{money(amountDue)}</strong></p></div>}
             <Button ref={paymentButtonRef} type="button" onClick={startCheckout} disabled={(!saleId && (!cashRegisterOpen || insufficientStock)) || !hasSaleValue || !selectedPayment || busy || total <= 0 || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsGatewayCustomer && !pagarmeCustomerValid)} className="mt-4 h-12 w-full rounded-xl bg-orange-600 text-base font-semibold hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={18} /> : <CreditCard className="mr-2" size={18} />}{selectedPayment?.provider === 'fiado' ? `Registrar fiado de ${money(total)}` : saleId ? 'Tentar pagamento' : `Cobrar ${money(total)}`}</Button>
             {saleId && !awaitingPayment && <button type="button" onClick={() => void cancelSale()} disabled={busy} className="mt-2 w-full py-1 text-sm font-medium text-slate-500 hover:text-red-600">Cancelar venda e liberar estoque</button>}
-            <p className="mt-2 text-center text-xs text-slate-500">{saleMode === 'quick' ? 'Venda rápida não movimenta o estoque.' : 'O estoque é reservado ao iniciar a cobrança.'}</p>
+            <p className="mt-2 text-center text-xs text-slate-500">{initialServiceSale ? 'As peças da O.S. serão baixadas após o pagamento integral.' : saleMode === 'quick' ? 'Venda rápida não movimenta o estoque.' : 'O estoque é reservado ao iniciar a cobrança.'}</p>
           </div>}
 
           {cashDue && <form onSubmit={event => { event.preventDefault(); if (selectedPayment?.provider === 'split') void confirmSplitCash(); else void confirmCashPayment(); }} className="space-y-4 px-5 pb-5">

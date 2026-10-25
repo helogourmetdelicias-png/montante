@@ -1,9 +1,9 @@
 'use client';
 
-import { Hammer, Shirt, Sparkles, Store, Wine } from 'lucide-react';
+import { Hammer, Shirt, Sparkles, Store, Wine, Smartphone, Monitor } from 'lucide-react';
 import { BUSINESS_NICHES, NICHE_LABELS, type BusinessNiche } from '@/lib/business-niche';
 
-const icons = { CONSTRUCTION: Hammer, COSMETICS: Sparkles, CLOTHING: Shirt, BEVERAGES: Wine, OTHER: Store };
+const icons = { CONSTRUCTION: Hammer, COSMETICS: Sparkles, CLOTHING: Shirt, BEVERAGES: Wine, PHONE_REPAIR: Smartphone, IT_SUPPORT: Monitor, OTHER: Store };
 
 export default function NicheChoices({ value, onChange, disabled = false }: { value: BusinessNiche | ''; onChange: (value: BusinessNiche) => void; disabled?: boolean }) {
   return <fieldset disabled={disabled} className="space-y-3"><legend className="mb-3 text-base font-semibold">Qual é o nicho da sua loja?</legend><div className="grid gap-3 sm:grid-cols-2">{BUSINESS_NICHES.map(niche => {

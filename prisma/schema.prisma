@@ -49,6 +49,16 @@ enum BusinessNiche {
   CLOTHING
   BEVERAGES
   OTHER
+  PHONE_REPAIR
+  IT_SUPPORT
+}
+
+enum ServiceOrderStatus {
+  PENDING_APPROVAL
+  IN_PROGRESS
+  READY
+  COMPLETED
+  CANCELLED
 }
 
 model Tenant {
@@ -81,6 +91,8 @@ model Tenant {
   payment_attempts        PaymentAttempt[]
   payment_terminals       PaymentTerminal[]
   subscription            TenantSubscription?
+  service_orders          ServiceOrder[]
+  service_sequence        Int @default(0)
   billing_records         BillingRecord[]
   credit_sales            CreditSale[]
   credit_payments         CreditPayment[]
@@ -178,6 +190,9 @@ model Product {
 
   tenant     Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   sale_items SaleItem[]
+  service_order_parts ServiceOrderPart[]
+
+  @@unique([id, tenant_id])
 
   @@unique([tenant_id, sku])
   @@unique([tenant_id, barcode])
@@ -233,6 +248,8 @@ model Customer {
 }
 
 model Sale {
+  service_order_id String?
+  service_order ServiceOrder? @relation(fields: [service_order_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
   id                       String    @id @default(cuid())
   tenant_id                String
   sale_number              Int
@@ -268,6 +285,50 @@ model Sale {
   @@index([tenant_id, sold_at])
   @@index([tenant_id, status, expires_at])
   @@index([tenant_id, cash_register_session_id, sold_at])
+}
+
+model ServiceOrder {
+  id String @id @default(cuid())
+  tenant_id String
+  number Int
+  client_name String
+  client_phone String
+  device_type String
+  device_brand_model String
+  serial_number_imei String?
+  reported_defect String
+  aesthetic_condition String
+  device_password_encrypted String? @db.Text
+  status ServiceOrderStatus @default(PENDING_APPROVAL)
+  parts_total Decimal @db.Decimal(10, 2)
+  labor_total Decimal @db.Decimal(10, 2)
+  grand_total Decimal @db.Decimal(10, 2)
+  photo_urls String[] @default([])
+  version Int @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  completed_at DateTime?
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  parts ServiceOrderPart[]
+  sales Sale[]
+  @@unique([id, tenant_id])
+  @@unique([tenant_id, number])
+  @@index([tenant_id, status, created_at])
+}
+
+model ServiceOrderPart {
+  id String @id @default(cuid())
+  tenant_id String
+  service_order_id String
+  product_id String
+  name_snapshot String
+  quantity Decimal @db.Decimal(10, 3)
+  unit_price Decimal @db.Decimal(10, 2)
+  total_price Decimal @db.Decimal(10, 2)
+  order ServiceOrder @relation(fields: [service_order_id, tenant_id], references: [id, tenant_id], onDelete: Cascade)
+  product Product @relation(fields: [product_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
+  @@unique([service_order_id, product_id])
+  @@index([tenant_id])
 }
 
 model CashRegisterSession {

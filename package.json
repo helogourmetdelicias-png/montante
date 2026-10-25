@@ -24,7 +24,9 @@
     "test:product-niche:db": "node --env-file=.env tests/product-niche.database.cjs",
     "test:pagbank:db": "node --env-file=.env tests/pagbank.database.cjs",
     "test:unit": "vitest run",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "test:service-orders:db": "node tests/service-orders.database.cjs",
+    "test:service-orders:browser": "playwright test --config playwright.service-orders.config.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.2",

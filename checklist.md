@@ -350,3 +350,17 @@ Esta atualização substitui, para o estado atual, as observações históricas 
 Detalhes e dependências de cada item pendente constam no retorno acrescentado ao feedback. Homologação real dos provedores permanece pendente conforme os registros anteriores.
 
 - [~] Projeto secundário Vercel `montante`, também ligado ao repositório, falhou nesta implantação. O projeto de produção `montante-um2r` concluiu com sucesso; não foi alterada a configuração do projeto secundário. Investigar ou desvincular em tarefa própria, se ele ainda for necessário.
+
+## Atualização — 25/10/2026: assistência técnica e serviços
+
+- [x] Vendas pendentes publicadas em a1d9615: 73 testes existentes, 9 Vitest, 6 Playwright, tipos, lint e build aprovados.
+- [x] Cobrança SaaS: URL, token de testes e webhook configurados na Vercel; checkout de R$ 49,90 aberto, sem pagamento realizado.
+- [ ] Homologar pagamento de teste e webhook SaaS. Configuração atual é de teste, não cobrança real.
+- [x] PHONE_REPAIR e IT_SUPPORT implementados no cadastro/onboarding/catálogo; módulo de O.S. com cliente/aparelho, defeito/estado físico, senha criptografada, peças, mão de obra, fotos HTTPS e consulta por situação.
+- [x] Validação: 73 testes existentes, 22 Vitest e 6 testes Playwright de regressão aprovados; integração de banco de O.S. e dos sete nichos aprovada. TypeScript e build de produção aprovados, com os três avisos de lint preexistentes.
+- [x] Migração aditiva 20261025000100_service_orders aplicada e conferida no banco; fixtures isoladas removidas.
+- [x] Playwright ponta a ponta aprovado contra a aplicação local compilada: login real, entrada/orçamento, O.S. pronta, recebimento em dinheiro, entrega, senha removida, estoque, saldo do caixa e comprovante. Todas as fixtures removidas; nenhum pagamento bancário real.
+- [ ] Publicação no projeto principal em andamento; registrar confirmação ao concluir.
+
+- [x] Integração de O.S. com caixa/PDV: orçamento fixo, apenas uma venda ativa por O.S., confirmação integral para entrega, baixa transacional de peças uma única vez e comprovante com peças/mão de obra. Cancelamento da cobrança não devolve estoque que não foi baixado.
+- [x] Aprovação online sem estoque preservada para conciliação após reposição, sem nova cobrança. Senha do aparelho removida ao concluir/cancelar. Guia operacional e limites em docs/ordens-servico.md.
