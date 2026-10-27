@@ -8,6 +8,8 @@ export const dynamic = 'force-dynamic';
 
 import { salesDetails } from '@/lib/reports/details';
 import { parsePeriod } from '@/lib/reports/period';
+import { canAccessAdvancedDashboard } from '@/lib/reports/dashboard-access';
+import { previousDashboardPeriod } from '@/lib/reports/dashboard';
 
 /** Management report API only exposes rows belonging to the authenticated tenant. */
 export async function GET(request: Request) {
@@ -16,8 +18,16 @@ export async function GET(request: Request) {
   if (!tenantId) return NextResponse.json({ error: 'Entre na sua conta para consultar relatórios.' }, { status: 401 });
   if (!['owner', 'admin'].includes(session.user.role)) return NextResponse.json({ error: 'Somente responsáveis e administradores podem acessar relatórios.' }, { status: 403 });
 
-  const period = parsePeriod(new URL(request.url));
+  const url = new URL(request.url);
+  const advanced = url.searchParams.get('dashboard') === '1';
+  if (advanced && !(await canAccessAdvancedDashboard(session.user.id, tenantId))) {
+    return NextResponse.json({ error: 'O dashboard avançado está disponível para assinaturas pagas vigentes.' }, { status: 403 });
+  }
+  const period = parsePeriod(url);
   if (!period) return NextResponse.json({ error: 'Informe um intervalo de datas válido.' }, { status: 400 });
+  if (advanced && period.endBefore.getTime() - period.startAt.getTime() > 366 * 86400000) {
+    return NextResponse.json({ error: 'Selecione até 366 dias para o dashboard avançado.' }, { status: 400 });
+  }
   const saleFilter: Prisma.SaleWhereInput = {
     tenant_id: tenantId,
     status: 'completed',
@@ -91,7 +101,18 @@ export async function GET(request: Request) {
     channel: group.channel.toLowerCase(),
     amount: (group._sum.amount ?? new Prisma.Decimal(0)).toFixed(2),
   }));
+  let previous = null;
+  if (advanced) {
+    const previousPeriod = previousDashboardPeriod(period.startAt, period.endBefore);
+    const totals = await prisma.sale.aggregate({ where: { tenant_id: tenantId, status: 'completed', sold_at: { gte: previousPeriod.startAt, lt: previousPeriod.endBefore } }, _count: { _all: true }, _sum: { total_amount: true } });
+    const revenue = totals._sum.total_amount ?? new Prisma.Decimal(0);
+    previous = { revenue: revenue.toFixed(2), saleCount: totals._count._all,
+      averageTicket: totals._count._all ? revenue.div(totals._count._all).toFixed(2) : '0.00',
+      startDate: new Date(previousPeriod.startAt.getTime() - 3 * 3600000).toISOString().slice(0, 10),
+      endDate: new Date(previousPeriod.endBefore.getTime() - 3 * 3600000 - 1).toISOString().slice(0, 10) };
+  }
   return NextResponse.json({
+    ...(advanced ? { previous } : {}),
     details: await salesDetails(tenantId, period.startAt, period.endBefore),
     storeName: tenant?.name ?? 'Montante',
     period: { startDate: period.startDate, endDate: period.endDate },
