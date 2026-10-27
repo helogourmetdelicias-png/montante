@@ -19,6 +19,25 @@ test('customer share identifies the page and separates concluded totals from pen
   assert.match(text, /Pendentes e canceladas não compõem/);
 });
 
+test('customer WhatsApp sharing uses the registered Brazilian phone with country code', () => {
+  const text = 'Histórico de João & Filhos\nTotal: R$ 10,00';
+  for (const phone of ['11912345678', '(11) 91234-5678', '+55 (11) 91234-5678', '5511912345678']) {
+    const url = new URL(whatsappShareUrl(text, phone));
+    assert.equal(url.pathname, '/5511912345678');
+    assert.equal(url.searchParams.get('text'), text);
+  }
+  assert.equal(new URL(whatsappShareUrl(text, '(55) 91234-5678')).pathname, '/5555912345678');
+  assert.equal(new URL(whatsappShareUrl(text, '(11) 3456-7890')).pathname, '/551134567890');
+});
+
+test('missing or invalid customer phone keeps WhatsApp contact selection and the message', () => {
+  for (const phone of [undefined, null, '', '   ', 'abc', '123', '123456789012345678']) {
+    const url = new URL(whatsappShareUrl('Histórico & compras', phone));
+    assert.equal(url.pathname, '/');
+    assert.equal(url.searchParams.get('text'), 'Histórico & compras');
+  }
+});
+
 test('report period uses inclusive Sao Paulo dates and rejects invalid/reversed calendar dates', () => {
   const period = parsePeriod(new URL('http://localhost?startDate=2026-10-19&endDate=2026-10-19'));
   assert.equal(period.startAt.toISOString(), '2026-10-19T03:00:00.000Z');

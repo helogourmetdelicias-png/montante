@@ -17,7 +17,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const hasPeriod = url.searchParams.has('startDate') || url.searchParams.has('endDate');
   const period = hasPeriod ? parsePeriod(url) : null;
   if (hasPeriod && (!url.searchParams.get('startDate') || !url.searchParams.get('endDate') || !period)) return NextResponse.json({ error: 'Informe as duas datas de um período válido.' }, { status: 400 });
-  const customer = await prisma.customer.findFirst({ where: { id: params.id, tenant_id: access.tenantId }, select: { id: true, name: true, isActive: true } });
+  const customer = await prisma.customer.findFirst({ where: { id: params.id, tenant_id: access.tenantId }, select: { id: true, name: true, phone: true, isActive: true } });
   if (!customer) return NextResponse.json({ error: 'Cliente não encontrado nesta loja.' }, { status: 404 });
   const where: Prisma.SaleWhereInput = { tenant_id: access.tenantId, customer_id: customer.id, ...(period ? { sold_at: { gte: period.startAt, lt: period.endBefore } } : {}) };
   const [sales, total, summary, tenant] = await prisma.$transaction([

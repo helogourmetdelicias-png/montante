@@ -25,6 +25,10 @@ export function historyShareText(history: ShareHistory) {
   ].join('\n');
 }
 
-export function whatsappShareUrl(text: string) {
-  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+export function whatsappShareUrl(text: string, phone?: string | null) {
+  const digits = phone?.replace(/\D/g, '') ?? '';
+  // O cadastro armazena telefones brasileiros com DDD, sem o código do país.
+  const recipient = [10, 11].includes(digits.length) ? `55${digits}`
+    : [12, 13].includes(digits.length) && digits.startsWith('55') ? digits : '';
+  return `https://wa.me/${recipient}?text=${encodeURIComponent(text)}`;
 }
