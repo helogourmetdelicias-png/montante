@@ -2,7 +2,17 @@ import { Resend } from 'resend';
 import { RequestError } from './request';
 
 export function assertEmailConfigured() {
-  if (!process.env.RESEND_API_KEY || !process.env.AUTH_EMAIL_FROM) {
+  const hasKey = !!process.env.RESEND_API_KEY;
+  const hasFrom = !!process.env.AUTH_EMAIL_FROM;
+  
+  console.log('[Email Config]', {
+    hasResendKey: hasKey,
+    hasEmailFrom: hasFrom,
+    keyPrefix: process.env.RESEND_API_KEY?.substring(0, 5),
+    emailFrom: process.env.AUTH_EMAIL_FROM,
+  });
+  
+  if (!hasKey || !hasFrom) {
     throw new RequestError('O envio de códigos ainda precisa ser configurado pelo responsável do sistema.', 503);
   }
 }
