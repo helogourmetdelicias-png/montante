@@ -36,20 +36,16 @@ export async function POST(request: Request, context: { params: Promise<{ action
       if (!user) throw new RequestError('E-mail ou senha incorretos.', 401);
       const nextFlow = opaqueToken();
       
-      // Se 2FA estiver desabilitado, retorna ticket direto
-      if (process.env.DISABLE_2FA === 'true') {
-        // Marca email como verificado se ainda não foi
-        if (!user.email_verified) {
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { email_verified: new Date() }
-          });
-        }
-        return withFlow({ ticket: await issueTicket(user, nextFlow) }, nextFlow);
+      // Marca email como verificado se ainda não foi (2FA removido)
+      if (!user.email_verified) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { email_verified: new Date() }
+        });
       }
       
-      if (await isTrustedDevice(user, cookieValue(request, DEVICE_COOKIE))) return withFlow({ ticket: await issueTicket(user, nextFlow) }, nextFlow);
-      return withFlow({ challengeId: await issueChallenge(user, 'login', nextFlow), email: user.email, verificationRequired: true }, nextFlow);
+      // Retorna ticket direto sem verificação
+      return withFlow({ ticket: await issueTicket(user, nextFlow) }, nextFlow);
     }
     if (action === 'forgot') {
       const input = z.object({ email: emailField }).strict().safeParse(body);
