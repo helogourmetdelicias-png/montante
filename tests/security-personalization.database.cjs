@@ -85,27 +85,10 @@ async function checkStatus(response, expected) { assert.equal(response.status, e
     let data = await checkStatus(start, 200);
     let flow = cookies(start, security.FLOW_COOKIE);
     assert.ok(flow); assert.match(start.headers.get('set-cookie'), /HttpOnly/i);
-    const jar = `${security.FLOW_COOKIE}=${flow}`;
-    const code = mails.at(-1).code;
-    assert.equal(JSON.stringify(data).includes(code), false);
-    await checkStatus(await call('verify', { challengeId: data.challengeId, code }, `${security.FLOW_COOKIE}=${'f'.repeat(64)}`), 400);
-    await checkStatus(await call('verify', { challengeId: data.challengeId, code: code === '000000' ? '111111' : '000000' }, jar), 400);
-    const verified = await call('verify', { challengeId: data.challengeId, code }, jar);
-    const proof = await checkStatus(verified, 200);
-    const device = cookies(verified, security.DEVICE_COOKIE);
-    assert.ok(device);
-    assert.equal(await security.consumeLoginTicket(proof.ticket, 'f'.repeat(64)), null);
-    assert.equal((await security.consumeLoginTicket(proof.ticket, flow)).tenant_id, a.id);
-    assert.equal(await security.consumeLoginTicket(proof.ticket, flow), null);
-    await checkStatus(await call('verify', { challengeId: data.challengeId, code }, jar), 400);
-    const mailCount = mails.length;
-    const known = await checkStatus(await call('start', { email, password, tenantChoice: a.id }, `${security.DEVICE_COOKIE}=${device}`), 200);
-    assert.ok(known.ticket); assert.equal(mails.length, mailCount);
-    // An unverified/new device still requires email and stale challenges are unusable.
-    start = await call('start', { email, password, tenantChoice: a.id }); data = await checkStatus(start, 200);
-    flow = cookies(start, security.FLOW_COOKIE);
-    await db.authChallenge.update({ where: { id: data.challengeId }, data: { expires_at: new Date(Date.now() - 1) } });
-    await checkStatus(await call('verify', { challengeId: data.challengeId, code: mails.at(-1).code }, `${security.FLOW_COOKIE}=${flow}`), 400);
+    assert.ok(data.ticket); assert.equal(mails.length, 0);
+    assert.equal(await security.consumeLoginTicket(data.ticket, 'f'.repeat(64)), null);
+    assert.equal((await security.consumeLoginTicket(data.ticket, flow)).tenant_id, a.id);
+    assert.equal(await security.consumeLoginTicket(data.ticket, flow), null);
     // The reset never reveals store names until ownership of the mailbox is proved.
     const unknown = await checkStatus(await call('forgot', { email: 'unknown@example.invalid' }), 200);
     assert.ok(unknown.challengeId); assert.equal(unknown.stores, undefined);
@@ -127,6 +110,9 @@ async function checkStatus(response, expected) { assert.equal(response.status, e
     currentSession = { user: { id: userA.id, tenantId: a.id, role: 'owner' } };
     const png = await sharp({ create: { width: 32, height: 24, channels: 4, background: '#ea580c' } }).png().toBuffer();
     const multipart = purpose => { const form = new FormData(); form.set('file', new File([png], 'private-photo.png', { type: 'image/png' })); form.set('purpose', purpose); return form; };
+    const logo = await checkStatus(await mediaRoute.POST(request('/api/media', multipart('logo'))), 201);
+    await checkStatus(await personalization.PATCH(request('/api/settings/personalization', { logoUrl: logo.url })), 200);
+    assert.equal((await checkStatus(await personalization.GET(), 200)).logoUrl, logo.url);
     const uploaded = await checkStatus(await mediaRoute.POST(request('/api/media', multipart('screensaver'))), 201);
     const assetId = uploaded.url.split('/').at(-1);
     const asset = await db.mediaAsset.findUnique({ where: { id: assetId } });
@@ -149,7 +135,7 @@ async function checkStatus(response, expected) { assert.equal(response.status, e
     await checkStatus(await settings.PATCH(request('/api/settings/screensaver', { minutes: 0, imageUrl: '' })), 200);
     const lockFlow = security.opaqueToken();
     const currentA = await db.user.findUnique({ where: { id: userA.id } });
-    const lockedChallenge = await security.issueChallenge(currentA, 'login', lockFlow);
+    const lockedChallenge = await security.issueChallenge(currentA, 'reset', lockFlow);
     const lockedCode = mails.at(-1).code;
     for (let attempt = 0; attempt < 5; attempt++) await assert.rejects(() => security.verifyChallenge(lockedChallenge, '000000', lockFlow));
     await assert.rejects(() => security.verifyChallenge(lockedChallenge, lockedCode, lockFlow));
@@ -157,16 +143,19 @@ async function checkStatus(response, expected) { assert.equal(response.status, e
     const registerData = { name: 'QA Signup', email: 'new-account@example.invalid', password, confirmPassword: password, tenantName: 'QA Signup', tenantSlug: `qa-signup-${randomUUID().slice(0, 8)}`, niche: 'OTHER' };
     const registration = await register.POST(request('/api/auth/register', registerData));
     const registered = await checkStatus(registration, 201);
-    assert.ok(registered.verificationRequired); assert.ok(registered.challengeId);
+    assert.equal(registered.challengeId, undefined);
     const signup = await db.user.findFirst({ where: { email: registerData.email } });
-    assert.equal(signup.email_verified, null);
-    const signupFlow = cookies(registration, security.FLOW_COOKIE);
-    const signupProof = await checkStatus(await call('verify', { challengeId: registered.challengeId, code: mails.at(-1).code }, `${security.FLOW_COOKIE}=${signupFlow}`), 200);
-    assert.equal((await security.consumeLoginTicket(signupProof.ticket, signupFlow)).id, signup.id);
-    const oldKey = process.env.RESEND_API_KEY; delete process.env.RESEND_API_KEY;
-    await checkStatus(await register.POST(request('/api/auth/register', { ...registerData, tenantSlug: 'must-not-be-created' })), 503);
-    assert.equal(await db.tenant.count({ where: { slug: 'must-not-be-created' } }), 0);
-    process.env.RESEND_API_KEY = oldKey;
+    assert.ok(signup.email_verified);
+    const signupLogin = await call('start', { email: registerData.email, password });
+    const signupProof = await checkStatus(signupLogin, 200);
+    assert.equal((await security.consumeLoginTicket(signupProof.ticket, cookies(signupLogin, security.FLOW_COOKIE))).id, signup.id);
+    // The obsolete bypass flag must never allow a fixed recovery code.
+    process.env.DISABLE_2FA = 'true';
+    const beforeMails = mails.length;
+    const safeRecovery = await security.issueChallenge(signup, 'reset', 'c'.repeat(64));
+    assert.equal(mails.length, beforeMails + 1);
+    await assert.rejects(() => security.verifyChallenge(safeRecovery, '000000', 'c'.repeat(64)));
+    delete process.env.DISABLE_2FA;
     const crossOrigin = new Request('https://montante.test/api/auth/security/forgot', { method: 'POST', headers: { origin: 'https://attacker.test', 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
     await checkStatus(await loginRoute.POST(crossOrigin, { params: Promise.resolve({ action: 'forgot' }) }), 403);
     const management = require('../src/app/api/admin/stores/[id]/route.ts');
@@ -205,7 +194,7 @@ async function checkStatus(response, expected) { assert.equal(response.status, e
     assert.equal(await db.user.count({ where: { id: userB.id } }), 0);
     assert.equal(await db.tenant.count({ where: { id: a.id } }), 1);
     assert.equal(await db.platformAudit.count({ where: { tenant_id: b.id, action: 'store.delete' } }), 1);
-    console.log(`PASS: ${assertions} HTTP checks plus OTP/device/ticket/reset, duplicate emails, exact tenant isolation, private images, image decoding and screensaver persistence. Emails/storage mocked; production data untouched.`);
+    console.log(`PASS: ${assertions} HTTP checks plus direct login/recovery/tickets, duplicate emails, exact tenant isolation, private images, image decoding and screensaver persistence. Emails/storage mocked; production data untouched.`);
   } finally {
     await db.$disconnect();
     assert.match(schema, /^qa_security_[a-f0-9]{12}$/);

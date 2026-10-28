@@ -15,6 +15,7 @@ export default function Personalization({ avatarUrl, logoUrl, imageUrl, minutes,
       if (kind === 'images' && !Object.keys(changes).length) { setMessage('Nenhuma alteração nas imagens.'); return; }
       const response = await fetch(`/api/settings/${kind === 'images' ? 'personalization' : 'screensaver'}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(kind === 'images' ? changes : { imageUrl: banner, minutes: timer }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.error ?? 'Falha ao salvar.');
+      if (kind === 'images') window.dispatchEvent(new Event('montante:brand-updated'));
       setMessage(kind === 'images' ? 'Imagens salvas.' : 'Proteção de tela salva. O PDV aberto recebe a configuração em até um minuto.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Falha ao salvar.'); }
     finally { setBusy(false); }

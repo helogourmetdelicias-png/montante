@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { registerSchema } from '@/lib/validations/auth';
 import { assertSameOrigin, RequestError } from '@/lib/security/request';
-import { opaqueToken, throttle } from '@/lib/security/auth-flow';
+import { throttle } from '@/lib/security/auth-flow';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,7 +56,6 @@ export async function POST(request: Request) {
       select: { id: true, slug: true, users: true },
     });
 
-    const flow = opaqueToken();
     
     // Marca email como verificado automaticamente (sem 2FA)
     await prisma.user.update({

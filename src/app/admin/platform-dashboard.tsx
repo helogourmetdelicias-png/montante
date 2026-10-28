@@ -1,4 +1,5 @@
 'use client';
+import StoreBrand from '@/components/store-brand';
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -51,7 +52,7 @@ export default function PlatformDashboard() {
     return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
   }, [load]);
   return <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
-    <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 lg:px-8"><div><p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Montante PDV · Administração geral</p><h1 className="mt-1 text-2xl font-semibold">Monitoramento de lojas</h1><p className="mt-1 text-sm text-slate-500">Visão de todas as lojas, vendas e assinaturas.</p></div><div className="flex flex-wrap gap-3"><Link href="/pdv" className="rounded-lg border px-4 py-2 text-sm">Minha loja</Link><Button variant="outline" onClick={() => void signOut({ callbackUrl: '/login' })}>Sair da conta</Button></div></div></header>
+    <header className="border-b bg-white"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 lg:px-8"><div><div className="mb-3"><StoreBrand /></div><p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Montante PDV · Administração geral</p><h1 className="mt-1 text-2xl font-semibold">Monitoramento de lojas</h1><p className="mt-1 text-sm text-slate-500">Visão de todas as lojas, vendas e assinaturas.</p></div><div className="flex flex-wrap gap-3"><Link href="/pdv" className="rounded-lg border px-4 py-2 text-sm">Minha loja</Link><Button variant="outline" onClick={() => void signOut({ callbackUrl: '/login' })}>Sair da conta</Button></div></div></header>
     <div className="mx-auto max-w-7xl space-y-5 px-5 py-6 lg:px-8">
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border bg-white p-4"><label className="text-sm font-medium">De<Input type="date" value={start || data?.period.startDate || ''} max={end || data?.period.endDate} onChange={event => { setStart(event.target.value); if (!end && data) setEnd(data.period.endDate); setPage(1); }} className="mt-1" /></label><label className="text-sm font-medium">Até<Input type="date" value={end || data?.period.endDate || ''} min={start || data?.period.startDate} onChange={event => { setEnd(event.target.value); if (!start && data) setStart(data.period.startDate); setPage(1); }} className="mt-1" /></label><Button disabled={busy} onClick={() => void load()}>{busy ? 'Atualizando…' : 'Atualizar painel'}</Button></div>
       {message && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{message}</p>}

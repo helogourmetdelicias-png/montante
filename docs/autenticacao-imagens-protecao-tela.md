@@ -1,47 +1,21 @@
 # Autenticação, imagens e proteção de tela
 
-Implementação local de 28/10/2026. Publicação pendente da homologação dos serviços.
+## Estado atual
 
-## Ambiente do servidor
+Login e cadastro funcionam sem verificação por código. O login valida e-mail e senha antes de identificar a loja; se houver várias contas com as mesmas credenciais, solicita a escolha. O acesso à sessão continua usando ticket descartável vinculado ao navegador. Permissões de loja e administração geral são revalidadas no servidor.
 
-Configure localmente e na Vercel, sem inserir segredos no repositório:
+O Resend permanece somente para recuperação de senha. Configure RESEND_API_KEY e AUTH_EMAIL_FROM no servidor para habilitar esse recurso. A ausência dessas variáveis não impede login ou cadastro. Não existe código fixo de recuperação nem flag DISABLE_2FA no fluxo ativo. A troca de senha invalida sessões antigas e registros legados de dispositivos.
 
-- RESEND_API_KEY: chave da API do Resend para envio de e-mails transacionais.
-- AUTH_EMAIL_FROM: endereço de remetente validado no Resend (formato: onboarding@seudominio.com).
-- NEXT_PUBLIC_SUPABASE_URL: URL HTTPS real do projeto.
-- SUPABASE_SERVICE_ROLE_KEY: chave secreta de servidor, nunca com prefixo NEXT_PUBLIC.
-- AUTH_SECRET: segredo persistente da autenticação.
+Removidos a rota pública /api/test-env, logs de prefixo de chave/endereço do remetente, arquivos temporários de debug/redeploy e o SDK de e-mail desnecessário. O envio de recuperação utiliza a API HTTP do Resend. Guias de Brevo e instruções antigas de migração não são requisitos do login atual.
 
-O envio usa o Resend para e-mails transacionais. O plano gratuito oferece 100 e-mails por dia e 3.000 por mês. Para produção, recomenda-se um domínio verificado no Resend. Limites ou atrasos podem impedir que códigos cheguem nos dez minutos de validade.
-Referência: https://resend.com/docs/introduction
+## Imagens e identidade visual
 
-## Preparação da publicação
+NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são necessários para Storage. A chave de servidor nunca deve ter prefixo NEXT_PUBLIC. O bucket montante-images é privado, com limite de 3 MB e arquivos WebP validados e convertidos pelo servidor. O script scripts/setup-image-storage.cjs prepara o bucket quando necessário.
 
-1. Faça backup e aplique a migração aditiva 20261028000100_security_personalization pelo fluxo de migrações do projeto.
-2. Execute `node --env-file=.env scripts/setup-image-storage.cjs`. O bucket montante-images deve ser privado. O script não converte bucket público existente.
-3. Homologue e-mail real, cadastro, login em novo dispositivo, recuperação e upload com contas próprias de teste.
-4. Publique e confira as variáveis no ambiente de produção.
+Galeria e câmera oferecem prévia e confirmação em produtos, O.S., foto de perfil, logo e proteção de tela. A logo da loja salva no Perfil aparece no cabeçalho do PDV, no menu e no painel principal da administração, sem distorção ou corte. A leitura das imagens privadas exige sessão da mesma loja. Imagem indisponível usa ícone de reserva. Salvar imagens avisa os componentes de identidade visual da página.
 
-Sem e-mail configurado, o novo fluxo recusa cadastro e login em dispositivo desconhecido. Não existe desvio para autenticação somente por senha. Migração e publicação não foram realizadas nesta entrega local.
+A proteção de tela no PDV preserva a venda e retorna no primeiro clique/tecla. O timer e a imagem são persistidos por loja. A proteção é visual, não bloqueio de autenticação.
 
-## Comportamento e segurança
+## Banco e histórico
 
-Login pede e-mail e senha. Se várias lojas tiverem as mesmas credenciais, a escolha aparece após validar a senha. Primeiro acesso e navegador desconhecido exigem código numérico. O cookie de dispositivo é HttpOnly e dura até 90 dias. Códigos duram dez minutos, com cinco tentativas e reenvio após 60 segundos. Tickets de sessão são descartáveis e vinculados ao navegador.
-
-A recuperação não revela se o e-mail existe. Após verificar a caixa de e-mail, permite escolher a loja quando necessário. Trocar a senha revoga sessões e dispositivos daquela conta.
-
-Produtos, O.S., avatar, logo e proteção de tela oferecem galeria e câmera, prévia e confirmação. O servidor valida as imagens, converte em WebP e remove metadados. Storage privado e leitura autenticada da mesma loja. URLs HTTPS antigas das O.S. continuam aceitas.
-
-No Perfil, configure imagem e timer. No PDV, a proteção usa imagem sem distorção/corte; primeiro clique ou tecla fecha sem acionar a venda. É proteção visual, não bloqueio de autenticação.
-
-## Testes e limites
-
-Integração usa schema temporário PostgreSQL removido ao terminar. E-mail e Storage são simulados. Testes de navegador cobrem login/código, upload com prévia, layout móvel, inatividade e prevenção de clique na venda ao sair. TypeScript, lint e build aprovados; três avisos anteriores permanecem. APK 1.1 compilado, lint Android e assinatura verificados; câmera física ainda requer aparelho.
-
-Envio real Resend e Storage real aguardam configuração válida do ambiente; testes simulados não comprovam entrega real.
-
-Atualização de implantação: em 28/10/2026 a migração aditiva foi aplicada com sucesso no banco principal. Bucket privado criado e remetente verificado. As variáveis foram cadastradas pelo usuário na Vercel; presença conferida em Production. Homologação real e publicação do novo código ainda precisam ser confirmadas.
-
-**Migração para Resend:** A integração de e-mail foi migrada do Brevo para o Resend. A variável BREVO_API_KEY deve ser substituída por RESEND_API_KEY no ambiente de produção.
-
-Publicação confirmada em 28/10/2026: commit b0b306f, implantação DARgNLnjnA5dkgjFQqhQTL8PrN5d na Vercel montante-um2r, status Ready. Health, login e recuperação HTTP 200; media exige sessão. Envio real e upload autenticado ainda aguardam homologação; criação de conta temporária bloqueada pela revisão automática antes da execução.
+As migrações de segurança, imagens e administração já aplicadas são preservadas. Não apagar migrações históricas nem tabelas usadas por tickets, recuperação, limite de tentativas ou invalidação de registros legados. Esta limpeza não exclui contas ou dados e não requer nova migração.

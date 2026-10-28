@@ -1,2 +1,0 @@
-Forçar redeploy - commit vazio
-Data/Hora: 2026-10-28

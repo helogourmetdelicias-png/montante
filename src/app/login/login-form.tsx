@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import SecurityCode, { securityRequest, type VerificationResult } from '@/components/security-code';
+import { securityRequest, type VerificationResult } from '@/components/security-code';
 import { parseAccount, parsePasswordCredentialId, passwordCredentialId } from '@/lib/saved-login-accounts';
 type PasswordWindow = Window & { PasswordCredential?: new (data: { id: string; password: string; name: string }) => Credential };
 
@@ -17,7 +17,6 @@ export default function LoginForm() {
   const [notice, setNotice] = useState('');
   const [saveCredentials, setSaveCredentials] = useState(true);
   const [passwordManager, setPasswordManager] = useState(false);
-  const [challenge, setChallenge] = useState<{ id: string; email: string } | null>(null);
   const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
   const [tenantChoice, setTenantChoice] = useState('');
   const emailInput = useRef<HTMLInputElement>(null);
@@ -72,7 +71,6 @@ export default function LoginForm() {
     try {
       const result = await securityRequest('start', { email, password: String(form.get('password')), ...(choice ? { tenantChoice: choice } : {}) });
       if (result.stores) { setStores(result.stores); setNotice('Escolha a loja para esta conta.'); }
-      else if (result.challengeId) setChallenge({ id: result.challengeId, email });
       else await completeLogin(result);
     } catch (error) { setError(error instanceof Error ? error.message : 'Não foi possível entrar.'); }
     finally { setBusy(false); }
@@ -80,8 +78,7 @@ export default function LoginForm() {
   return <main className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-10"><div className="w-full max-w-md">
     <div className="mb-6 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><LockKeyhole className="h-6 w-6" /></div><p className="mt-4 text-sm font-semibold text-primary">Montante</p><h1 className="mt-1 text-2xl font-bold tracking-tight">Acesse sua loja</h1><p className="mt-2 text-sm text-muted-foreground">Entre com seu e-mail e senha.</p></div>
     <Card><CardHeader><CardTitle className="text-xl">Entrar</CardTitle><CardDescription>Seu login e senha podem ser lembrados pelo navegador.</CardDescription></CardHeader><CardContent className="space-y-5">
-      {challenge && <SecurityCode challengeId={challenge.id} email={challenge.email} onVerified={completeLogin} onBack={() => setChallenge(null)} />}
-      <form method="post" autoComplete="on" onSubmit={handleSubmit} className={challenge ? 'hidden' : 'space-y-4'}>
+      <form method="post" autoComplete="on" onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2"><Label htmlFor="email">E-mail</Label><Input ref={emailInput} id="email" name="email" type="text" inputMode="email" autoCapitalize="none" autoCorrect="off" autoComplete="username" placeholder="voce@loja.com.br" required disabled={busy} onChange={() => { tenantHint.current = ''; setStores([]); setTenantChoice(''); setError(''); }} /></div>
         <div className="space-y-2"><Label htmlFor="password">Senha</Label><Input ref={passwordInput} id="password" name="password" type="password" autoComplete="current-password" required minLength={6} disabled={busy} /></div>
         <Link href="/recuperar-senha" className="inline-block text-sm font-medium text-orange-700 underline">Esqueci minha senha</Link>
@@ -92,6 +89,6 @@ export default function LoginForm() {
         {notice && <p role="status" className="rounded-md bg-muted p-3 text-sm">{notice}</p>}{error && <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
         <Button type="submit" className="w-full" disabled={busy}>{busy ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Entrando…</> : <>Entrar <ArrowRight className="ml-2 h-4 w-4" /></>}</Button>
       </form>
-    </CardContent></Card><p className="mt-4 text-center text-xs text-muted-foreground">Novos dispositivos são confirmados com um código enviado ao seu e-mail.</p><p className="mt-3 text-center text-sm text-muted-foreground">Ainda não tem loja cadastrada? <Link href="/cadastro" className="font-medium text-primary underline">Criar loja</Link></p>
+    </CardContent></Card><p className="mt-4 text-center text-xs text-muted-foreground">Use uma senha exclusiva para proteger sua conta.</p><p className="mt-3 text-center text-sm text-muted-foreground">Ainda não tem loja cadastrada? <Link href="/cadastro" className="font-medium text-primary underline">Criar loja</Link></p>
   </div></main>;
 }

@@ -14,7 +14,7 @@ export default async function PointOfSalePage(props: { searchParams: Promise<{ s
 
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
-    select: { name: true, screensaver_url: true, screensaver_minutes: true },
+    select: { name: true, logo_url: true, screensaver_url: true, screensaver_minutes: true },
   });
   if (!tenant) redirect('/login');
 
@@ -29,6 +29,6 @@ export default async function PointOfSalePage(props: { searchParams: Promise<{ s
   }
   return <>
     <PdvScreensaver initial={{ imageUrl: tenant.screensaver_url ?? '', minutes: tenant.screensaver_minutes }} />
-    <PointOfSale key={initialServiceSale?.id ?? 'new'} storeName={tenant.name} canManageBrand={canManageStore} operatorName={session.user.name ?? 'Operador'} initialServiceSale={initialServiceSale} />
+    <PointOfSale key={initialServiceSale?.id ?? 'new'} storeName={tenant.name} logoUrl={tenant.logo_url ?? ''} canManageBrand={canManageStore} operatorName={session.user.name ?? 'Operador'} initialServiceSale={initialServiceSale} />
   </>;
 }

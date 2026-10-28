@@ -394,3 +394,12 @@ Instruções e limites em docs/autenticacao-imagens-protecao-tela.md.
 - [x] Plano gratuito não gera novas mensalidades; planos fixos respeitados nos ciclos futuros; cobranças antigas não são alteradas ou canceladas automaticamente. Dashboard segue plano definido, preservando a exceção já existente da conta Ricardo.
 - [x] Removidos lista de contas, apelido da loja e opção “Salvar esta conta neste computador” do login. Mantidos preenchimento automático e opção “Salvar login e senha no navegador”, usando o gerenciador nativo; nenhuma senha em localStorage.
 - [x] 75 testes de regressão, 38 Vitest, 40 verificações HTTP em schema temporário e quatro Playwright aprovados; build de produção e TypeScript aprovados, com avisos de lint anteriores.
+
+## Correção da logo e limpeza após retirada do código no login
+
+- [x] Sincronizada a versão publicada a586810 antes das alterações; login direto por senha preservado.
+- [x] Logo persistida no Perfil conectada ao cabeçalho do PDV, menu lateral e painel principal administrativo; imagem inteira com object-fit contain, leitura autenticada por loja e ícone de reserva.
+- [x] Removida depuração pública /api/test-env, logs com fragmentos de chave/remetente, arquivos temporários de migração/debug/redeploy, código fixo ligado à flag DISABLE_2FA e componentes de verificação obsoletos do login/cadastro.
+- [x] Corrigido cadastro que mostrava mensagem de falha de código mesmo após sucesso; agora encaminha para o login.
+- [x] Mantido Resend apenas para recuperação de senha; SDK redundante removido e envio HTTP preservado. Migrações/tabelas compartilhadas com tickets e recuperação mantidas.
+- [x] Validação desta correção: 75 testes de regressão, 38 Vitest, 35 verificações HTTP com banco isolado e cinco Playwright aprovados; TypeScript e build de produção aprovados. Nenhum e-mail real enviado, nenhuma conta/loja real criada ou excluída; sem nova migração.

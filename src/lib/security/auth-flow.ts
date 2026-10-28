@@ -6,7 +6,6 @@ import { sendSecurityCode, assertEmailConfigured } from './email';
 import { RequestError } from './request';
 
 export const FLOW_COOKIE = 'montante-auth-flow';
-export const DEVICE_COOKIE = 'montante-device';
 export const COOKIE_OPTIONS = { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/' };
 export const opaqueToken = () => randomBytes(32).toString('hex');
 export const validOpaqueToken = (token: string) => /^[a-f0-9]{64}$/.test(token);
@@ -44,23 +43,7 @@ export async function findLoginUsers(email: string, password: string) {
   return matches;
 }
 
-export async function issueChallenge(user: User, purpose: 'login' | 'reset', flow: string) {
-  // Verificação temporária: se DISABLE_2FA estiver ativa, não envia código
-  if (process.env.DISABLE_2FA === 'true') {
-    console.log('[2FA] Desabilitado temporariamente - pulando envio de código');
-    const challenge = await prisma.authChallenge.create({ 
-      data: { 
-        user_id: user.id, 
-        purpose, 
-        flow_hash: secretHash(flow), 
-        credential_hash: credentialHash(user), 
-        code_hash: secretHash('000000'), // código fixo quando desabilitado
-        expires_at: new Date(Date.now() + 10 * 60000) 
-      } 
-    });
-    return challenge.id;
-  }
-  
+export async function issueChallenge(user: User, purpose: 'reset', flow: string) {
   assertEmailConfigured();
   const code = String(randomInt(100000, 1000000));
   const challenge = await prisma.authChallenge.create({ data: { user_id: user.id, purpose, flow_hash: secretHash(flow), credential_hash: credentialHash(user), code_hash: secretHash(code), expires_at: new Date(Date.now() + 10 * 60000) } });
@@ -79,15 +62,10 @@ export async function issueTicket(user: User, flow: string, purpose = 'ticket') 
   return ticket;
 }
 
-export async function isTrustedDevice(user: User, device: string) {
-  if (!user.email_verified || !validOpaqueToken(device)) return false;
-  return !!await prisma.trustedDevice.findFirst({ where: { user_id: user.id, token_hash: secretHash(device), auth_version: user.auth_version, expires_at: { gt: new Date() } } });
-}
-
 export async function verifyChallenge(id: string, code: string, flow: string) {
   const invalid = () => new RequestError('Código inválido ou expirado. Solicite um novo código.', 400);
   const now = new Date();
-  const challenge = await prisma.authChallenge.findFirst({ where: { id, consumed_at: null, expires_at: { gt: now }, attempts: { lt: 5 }, purpose: { in: ['login', 'reset'] } }, include: { user: { include: { tenant: { select: { is_active: true } } } } } });
+  const challenge = await prisma.authChallenge.findFirst({ where: { id, consumed_at: null, expires_at: { gt: now }, attempts: { lt: 5 }, purpose: 'reset' }, include: { user: { include: { tenant: { select: { is_active: true } } } } } });
   if (!challenge || !validOpaqueToken(flow) || !sameHash(challenge.flow_hash, secretHash(flow))) throw invalid();
   const user = challenge.user;
   if (!user.is_active || !user.tenant.is_active || !sameHash(challenge.credential_hash, credentialHash(user))) throw invalid();

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import StoreShortcuts from './store-shortcuts';
+import StoreBrand from './store-brand';
 import { signOut } from 'next-auth/react';
 import { OperatorSwitch } from '@/components/operator-access';
 import { useEffect, useState } from 'react';
@@ -65,7 +66,7 @@ export default function StoreNavigation({ activePage, canManageStore }: StoreNav
     {mobileOpen && <button type="button" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden" />}
     <aside id="store-sidebar" data-store-sidebar={collapsed ? 'collapsed' : 'expanded'} aria-label="Menu da loja" className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-slate-200 bg-white transition-transform ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 ${collapsed ? 'lg:w-[72px]' : 'lg:w-60'}`}>
       <div className="flex h-20 shrink-0 items-center justify-between gap-2 border-b px-3">
-        <Link href="/pdv" className={`flex min-w-0 items-center gap-2 text-orange-600 ${collapsed ? 'lg:hidden' : ''}`} onClick={() => setMobileOpen(false)}><ShoppingBag size={25} /><span className="text-lg font-bold">Montante</span></Link>
+        <Link href="/pdv" className={`flex min-w-0 items-center gap-2 text-orange-600 ${collapsed ? 'lg:hidden' : ''}`} onClick={() => setMobileOpen(false)}><StoreBrand /></Link>
         <button type="button" onClick={toggle} aria-label={collapsed ? 'Exibir menu lateral' : 'Recolher menu lateral'} aria-expanded={!collapsed} className="hidden rounded-lg p-3 text-slate-500 hover:bg-orange-50 hover:text-orange-700 lg:block">{collapsed ? <PanelLeftOpen size={21} /> : <PanelLeftClose size={21} />}</button>
         <button type="button" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="p-2 lg:hidden"><X size={20} /></button>
       </div>

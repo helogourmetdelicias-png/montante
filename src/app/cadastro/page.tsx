@@ -2,37 +2,25 @@
 
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { ArrowRight, LoaderCircle, Store } from 'lucide-react';
-import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import NicheChoices from '@/components/niche-choices';
 import type { BusinessNiche } from '@/lib/business-niche';
-import SecurityCode, { type VerificationResult } from '@/components/security-code';
 
 function slugify(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
 }
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [tenantName, setTenantName] = useState('');
   const [tenantSlug, setTenantSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
   const [niche, setNiche] = useState<BusinessNiche | ''>('');
-  const [challenge, setChallenge] = useState<{ id: string; email: string } | null>(null);
-  async function finishVerification(proof: VerificationResult) {
-    if (!proof.ticket) throw new Error('Solicite um novo código no login.');
-    const login = await signIn('credentials', { loginTicket: proof.ticket, redirect: false, callbackUrl: '/configuracoes/pagamentos' });
-    if (!login?.ok || login.error) throw new Error('Conta verificada. Entre novamente para continuar.');
-    window.location.assign('/configuracoes/pagamentos');
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -58,8 +46,7 @@ export default function RegisterPage() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? 'Não foi possível criar a loja.');
 
-      if (result.challengeId) setChallenge({ id: result.challengeId, email: data.email });
-      else { setError('Conta criada. O código não pôde ser enviado agora. Entre pelo login para solicitar novamente.'); }
+      window.location.assign('/login?registered=1');
       setBusy(false);
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : 'Falha inesperada ao criar a loja.');
@@ -80,8 +67,7 @@ export default function RegisterPage() {
         <Card>
           <CardHeader><CardTitle className="text-xl">Criar conta da loja</CardTitle><CardDescription>Use uma senha forte. Ela será armazenada como hash seguro.</CardDescription></CardHeader>
           <CardContent>
-            {challenge && <SecurityCode challengeId={challenge.id} email={challenge.email} onVerified={finishVerification} onBack={() => router.push('/login')} />}
-            <form method="post" onSubmit={handleSubmit} className={challenge ? 'hidden' : 'space-y-5'}>
+            <form method="post" onSubmit={handleSubmit} className="space-y-5">
               <section className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2"><Label htmlFor="tenantName">Nome da loja</Label><Input id="tenantName" value={tenantName} onChange={(event) => { const value = event.target.value; setTenantName(value); if (!slugEdited) setTenantSlug(slugify(value)); }} required minLength={2} maxLength={100} placeholder="Helô Gourmet Delícias" /></div>
                 <div className="space-y-2"><Label htmlFor="tenantSlug">Identificador da loja</Label><Input id="tenantSlug" value={tenantSlug} onChange={(event) => { setSlugEdited(true); setTenantSlug(slugify(event.target.value)); }} required minLength={3} maxLength={50} placeholder="minha-loja" autoCapitalize="none" autoCorrect="off" /><p className="text-xs text-muted-foreground">Identifica sua loja. Para entrar, use apenas e-mail e senha.</p></div>

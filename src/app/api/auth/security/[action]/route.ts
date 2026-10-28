@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { assertSameOrigin, RequestError } from '@/lib/security/request';
 import { assertEmailConfigured } from '@/lib/security/email';
-import { COOKIE_OPTIONS, DEVICE_COOKIE, FLOW_COOKIE, cookieValue, credentialHash, findLoginUsers, isTrustedDevice, issueChallenge, issueTicket, opaqueToken, resetPassword, secretHash, throttle, throttleRequest, validOpaqueToken, verifyChallenge } from '@/lib/security/auth-flow';
+import { COOKIE_OPTIONS, FLOW_COOKIE, cookieValue, credentialHash, findLoginUsers, issueChallenge, issueTicket, opaqueToken, resetPassword, secretHash, throttle, throttleRequest, validOpaqueToken, verifyChallenge } from '@/lib/security/auth-flow';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -67,26 +67,17 @@ export async function POST(request: Request, context: { params: Promise<{ action
         const stores = await prisma.user.findMany({ where: { email: { equals: user.email, mode: 'insensitive' }, is_active: true, tenant: { is_active: true } }, select: { tenant: { select: { id: true, name: true } } }, take: 21 });
         return response({ resetTicket: await issueTicket(user, flow, 'reset-ticket'), stores: stores.map(row => row.tenant) });
       }
-      const previousDevice = cookieValue(request, DEVICE_COOKIE);
-      const device = validOpaqueToken(previousDevice) ? previousDevice : opaqueToken();
-      const now = new Date();
-      await prisma.$transaction([
-        prisma.user.update({ where: { id: user.id }, data: { email_verified: now } }),
-        prisma.trustedDevice.upsert({ where: { user_id_token_hash: { user_id: user.id, token_hash: secretHash(device) } }, create: { user_id: user.id, token_hash: secretHash(device), auth_version: user.auth_version, expires_at: new Date(now.getTime() + 90 * 86400000) }, update: { auth_version: user.auth_version, expires_at: new Date(now.getTime() + 90 * 86400000) } }),
-      ]);
-      const result = response({ ticket: await issueTicket(user, flow) });
-      result.cookies.set(DEVICE_COOKIE, device, { ...COOKIE_OPTIONS, maxAge: 90 * 86400 });
-      return result;
+      throw new RequestError('Solicite uma nova recuperação de senha.');
     }
     if (action === 'resend') {
       const input = resendSchema.safeParse(body);
       if (!input.success || !validOpaqueToken(flow)) throw new RequestError('Solicite um novo acesso.');
-      const current = await prisma.authChallenge.findFirst({ where: { id: input.data.challengeId, flow_hash: secretHash(flow), consumed_at: null, purpose: { in: ['login', 'reset'] } }, include: { user: { include: { tenant: { select: { is_active: true } } } } } });
+      const current = await prisma.authChallenge.findFirst({ where: { id: input.data.challengeId, flow_hash: secretHash(flow), consumed_at: null, purpose: 'reset' }, include: { user: { include: { tenant: { select: { is_active: true } } } } } });
       if (!current || !current.user.is_active || !current.user.tenant.is_active || current.credential_hash !== credentialHash(current.user)) throw new RequestError('Solicite um novo acesso.');
       if (Date.now() - current.created_at.getTime() < 60000) throw new RequestError('Aguarde um minuto antes de reenviar.', 429);
       await throttleRequest(request, 'resend', current.user.email);
       await prisma.authChallenge.update({ where: { id: current.id }, data: { consumed_at: new Date() } });
-      return response({ challengeId: await issueChallenge(current.user, current.purpose as 'login' | 'reset', flow) });
+      return response({ challengeId: await issueChallenge(current.user, 'reset', flow) });
     }
     if (action === 'reset') {
       const input = resetSchema.safeParse(body);

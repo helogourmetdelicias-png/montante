@@ -8,6 +8,13 @@ import { assertSameOrigin, RequestError } from '@/lib/security/request';
 
 const field = z.string().max(200).refine(value => !value || isMediaPath(value)).optional();
 const schema = z.object({ avatarUrl: field, logoUrl: field }).strict().refine(value => Object.keys(value).length > 0);
+export async function GET() {
+  const session = await auth();
+  if (!session?.user?.tenantId) return NextResponse.json({ error: 'Entre na sua conta.' }, { status: 401 });
+  const tenant = await prisma.tenant.findUnique({ where: { id: session.user.tenantId }, select: { name: true, logo_url: true } });
+  if (!tenant) return NextResponse.json({ error: 'Loja não encontrada.' }, { status: 404 });
+  return NextResponse.json({ name: tenant.name, logoUrl: tenant.logo_url }, { headers: { 'Cache-Control': 'private, no-store' } });
+}
 export async function PATCH(request: Request) {
   const session = await auth();
   if (!session?.user?.tenantId) return NextResponse.json({ error: 'Entre na sua conta.' }, { status: 401 });

@@ -2,6 +2,23 @@ import { expect, test } from '@playwright/test';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jH9kAAAAASUVORK5CYII=', 'base64');
 
+test('saved tenant logo appears without cropping and refreshes after personalization', async ({ page }) => {
+  let logo = '/api/media/clogo-one';
+  await page.route('**/api/settings/personalization', route => route.fulfill({ json: { name: 'Minha loja', logoUrl: logo } }));
+  await page.route('**/api/media/*', route => route.fulfill({ contentType: 'image/png', body: png }));
+  await page.goto('/personalization.html?mode=brand');
+  const image = page.getByAltText('Logo de Minha loja');
+  await expect(image).toHaveAttribute('src', '/api/media/clogo-one');
+  await expect(image).toHaveCSS('object-fit', 'contain');
+  logo = '/api/media/clogo-two';
+  await page.getByRole('button', { name: 'Atualizar logo' }).click();
+  await expect(image).toHaveAttribute('src', '/api/media/clogo-two');
+  logo = '';
+  await page.getByRole('button', { name: 'Atualizar logo' }).click();
+  await expect(image).toHaveCount(0);
+  await expect(page.getByText('Minha loja', { exact: true })).toBeVisible();
+});
+
 test('admin changes plans and requires the exact store slug before deletion', async ({ page }) => {
   const requests: { method: string; body: unknown }[] = [];
   await page.route('**/api/admin/stores/qa-store', async route => { requests.push({ method: route.request().method(), body: route.request().postDataJSON() }); await route.fulfill({ json: { ok: true } }); });
@@ -21,14 +38,14 @@ test('admin changes plans and requires the exact store slug before deletion', as
   expect(requests.at(-1)).toEqual({ method: 'DELETE', body: { confirmation: 'loja-teste' } });
 });
 
-test('login uses email/password, selects ambiguous stores, then requests the security code', async ({ page }) => {
+test('login uses email/password, selects ambiguous stores, preserves direct login without a security code', async ({ page }) => {
   let starts = 0;
   await page.route('**/api/auth/security/start', async route => {
     const input = route.request().postDataJSON();
     expect(input.email).toBe('owner@example.com'); expect(input.password).toBe('Password123!');
     starts++;
     if (starts === 1) { expect(input.tenantChoice).toBeUndefined(); await route.fulfill({ json: { stores: [{ id: 'tenant-a', name: 'Loja A' }, { id: 'tenant-b', name: 'Loja B' }] } }); }
-    else { expect(input.tenantChoice).toBe('tenant-b'); await route.fulfill({ json: { challengeId: 'c'.repeat(25), email: input.email } }); }
+    else { expect(input.tenantChoice).toBe('tenant-b'); await route.fulfill({ status: 401, json: { error: 'Credencial recusada no teste.' } }); }
   });
   await page.route('**/api/auth/security/verify', route => route.fulfill({ status: 400, json: { error: 'Código inválido ou expirado.' } }));
   await page.goto('/personalization.html?mode=login');
@@ -42,10 +59,8 @@ test('login uses email/password, selects ambiguous stores, then requests the sec
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await page.getByLabel('Escolha a loja').selectOption('tenant-b');
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Confira seu e-mail' })).toBeVisible();
-  await page.getByLabel('Código de segurança', { exact: true }).fill('123456');
-  await page.getByRole('button', { name: 'Confirmar código' }).click();
-  await expect(page.getByRole('status')).toContainText('Código inválido');
+  await expect(page.getByRole('alert')).toContainText('Credencial recusada no teste.');
+  await expect(page.getByRole('heading', { name: 'Confira seu e-mail' })).toHaveCount(0);
 });
 
 test('gallery and camera preview before upload and save the screensaver only after confirmation', async ({ page }) => {

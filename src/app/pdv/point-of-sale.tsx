@@ -1,4 +1,5 @@
 'use client';
+import StoreBrand from '@/components/store-brand';
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Barcode, Check, ChevronDown, CircleAlert, CreditCard, LoaderCircle, Minus, PackageSearch, Plus, Search, ShoppingBag, Trash2, X } from 'lucide-react';
@@ -29,7 +30,7 @@ type Product = {
 
 type CartLine = { product: Product; quantity: number };
 type PaymentOption = { provider: string; label: string; method: string; channel: string; terminalId?: string; environment?: string; pixProvider?: string };
-type Props = { storeName: string; canManageBrand: boolean; operatorName: string; initialServiceSale?: { id: string; total: string; notes: string; orderId: string } };
+type Props = { logoUrl?: string; storeName: string; canManageBrand: boolean; operatorName: string; initialServiceSale?: { id: string; total: string; notes: string; orderId: string } };
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -44,7 +45,7 @@ function errorMessage(payload: unknown, fallback: string) {
 }
 
 /** One-screen checkout: searchable catalog on the left, live cart and payment on the right. */
-export default function PointOfSale({ storeName, canManageBrand, operatorName, initialServiceSale }: Props) {
+export default function PointOfSale({ storeName, logoUrl, canManageBrand, operatorName, initialServiceSale }: Props) {
   const searchRef = useRef<HTMLInputElement>(null);
   const saleDialog = useRef<HTMLDialogElement>(null);
   const quickAmountRef = useRef<HTMLInputElement>(null);
@@ -568,7 +569,7 @@ export default function PointOfSale({ storeName, canManageBrand, operatorName, i
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex min-h-24 max-w-[1600px] flex-wrap items-center justify-between gap-4 px-5 py-4 lg:px-8">
           <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-600 text-white shadow-sm"><ShoppingBag size={23} /></div>
+            <StoreBrand name={storeName} logoUrl={logoUrl} showName={false} />
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-700">Montante · Ponto de venda</p>
               <h1 className="truncate text-xl font-semibold tracking-tight">{storeName}</h1>
