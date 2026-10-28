@@ -2,6 +2,25 @@ import { expect, test } from '@playwright/test';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jH9kAAAAASUVORK5CYII=', 'base64');
 
+test('material offers niche suggestions, accepts custom text and stays hidden for beverages', async ({ page }) => {
+  await page.goto('/personalization.html?mode=material');
+  const field = page.getByLabel('Material (opcional)', { exact: true });
+  await expect(field).toBeVisible();
+  await expect(field).toHaveAttribute('list', /-options$/);
+  await expect(page.locator('datalist option[value="Algodão"]')).toHaveCount(1);
+  await field.fill('Linho artesanal');
+  await expect(field).toHaveValue('Linho artesanal');
+  for (const [niche, suggestion] of [['CONSTRUCTION', 'PVC'], ['PHONE_REPAIR', 'Silicone'], ['IT_SUPPORT', 'Cobre'], ['COSMETICS', 'Vidro']]) {
+    await page.getByLabel('Nicho').selectOption(niche);
+    await expect(field).toBeVisible();
+    await expect(page.locator(`datalist option[value="${suggestion}"]`)).toHaveCount(1);
+  }
+  for (const niche of ['BEVERAGES', 'OTHER']) {
+    await page.getByLabel('Nicho').selectOption(niche);
+    await expect(field).toHaveCount(0);
+  }
+});
+
 test('saved tenant logo appears without cropping and refreshes after personalization', async ({ page }) => {
   let logo = '/api/media/clogo-one';
   await page.route('**/api/settings/personalization', route => route.fulfill({ json: { name: 'Minha loja', logoUrl: logo } }));

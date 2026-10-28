@@ -32,7 +32,22 @@ test('product fields follow the niche and container price follows its checkbox',
  assert.ok(render('BEVERAGES', { requiresContainer: true, containerValue: 12.5 }).includes('Valor do casco'));
  assert.ok(render('CONSTRUCTION').includes('Marca / Fabricante'));
  assert.equal(render('OTHER'), ''); assert.equal(render(null), '');
- assert.deepEqual(getNicheAttributeKeys('CONSTRUCTION'), []);
+ assert.deepEqual(getNicheAttributeKeys('CONSTRUCTION'), ['material']);
+});
+
+test('material is optional, accepts custom text and follows relevant niches with suggestions', () => {
+ for (const [niche, suggestion] of [['CLOTHING', 'Algodão'], ['CONSTRUCTION', 'PVC'], ['PHONE_REPAIR', 'Silicone'], ['IT_SUPPORT', 'Cobre'], ['COSMETICS', 'Vidro']]) {
+  const html = render(niche, { material: 'Material personalizado' });
+  assert.ok(html.includes('Material (opcional)'));
+  assert.ok(html.includes('<datalist') && html.includes(`value="${suggestion}"`));
+  assert.ok(html.includes('value="Material personalizado"'));
+  assert.ok(getNicheAttributeKeys(niche).includes('material'));
+ }
+ for (const niche of ['BEVERAGES', 'OTHER', null]) assert.ok(!render(niche).includes('Material (opcional)'));
+ const base = { name: 'Produto QA', unitOfMeasure: 'un', sellByFraction: false, price: 10, stockQuantity: 3 };
+ assert.equal(createProductSchema.parse({ ...base, attributes: { material: ' Algodão ' } }).attributes.material, 'Algodão');
+ assert.ok(updateProductSchema.safeParse({ attributes: { material: null } }).success);
+ for (const material of [123, {}, 'x'.repeat(121)]) assert.equal(createProductSchema.safeParse({ ...base, attributes: { material } }).success, false);
 });
 
 test('optional niche characteristics validate dates, enums, lengths and money without weakening stock rules', () => {

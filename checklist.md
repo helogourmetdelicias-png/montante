@@ -411,3 +411,12 @@ Instruções e limites em docs/autenticacao-imagens-protecao-tela.md.
 - [x] Exclusão administrativa passou a reutilizar isAbandonedManualCharge, já utilizada pelo Caixa: tentativas manuais de vendas canceladas não são cobranças externas ativas. Cobranças de provedores externos continuam bloqueando a exclusão.
 - [x] Regressão em schema temporário reproduz venda cancelada com cobrança externa pendente (bloqueia) e Pix manual abandonado (permite exclusão apenas da fixture).
 - [x] Validações aprovadas: 38 Vitest, 35 verificações HTTP/integradas em schema temporário, TypeScript/lint e build de produção; avisos anteriores de lint preservados. Nenhum pagamento real consultado em provedor ou cancelado; nenhuma exclusão da Showdebola executada.
+- [x] Correção publicada em 28/10/2026, commit 16857e6, Vercel montante-um2r FeVJ6QfdvgFi6kk7Jag7ge5wWJtt (Ready), domínio de produção confirmado. Showdebola e suas vendas preservadas; exclusão permanece sob decisão e confirmação do administrador no painel.
+
+## Campo Material por nicho — 28/10/2026
+
+- [x] Material opcional integrado em attributes.material (JSON já existente do produto), sem nova coluna ou migração. Tipagem e validação de texto com até 120 caracteres, espaços normalizados e limpeza por null.
+- [x] Exibido em Roupas, Construção, Conserto de Celulares, Informática e Cosméticos; oculto em Bebidas, Outros e loja sem nicho. Datalist com sugestões por nicho e texto livre.
+- [x] APIs de criação/edição usam a lista central de atributos por nicho, preservam características existentes e continuam isoladas por loja. Material retorna na listagem e na reabertura do editor.
+- [x] 76 testes de regressão aprovados; teste Playwright de sugestões/valor livre/ocultação aprovado. Integração PostgreSQL em schema descartável aprovada para os sete nichos, criação, edição, limpeza, compatibilidade antiga e isolamento; schema removido e produtos reais preservados.
+- [x] TypeScript, lint e build de produção aprovados; apenas os três avisos anteriores de lint. Sem alteração de vendas, preços, estoque ou produtos reais.

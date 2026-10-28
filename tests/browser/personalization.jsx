@@ -5,10 +5,14 @@ import Personalization from '../../src/app/perfil/personalization';
 import PdvScreensaver from '../../src/components/pdv-screensaver';
 import StoreActions from '../../src/app/admin/store-actions';
 import StoreBrand from '../../src/components/store-brand';
+import NicheProductFields from '../../src/app/produtos/niche-product-fields';
 import '../../src/app/globals.css';
 function Harness() {
   const mode = new URLSearchParams(location.search).get('mode');
   const [sales, setSales] = useState(0);
+  const [niche, setNiche] = useState('CLOTHING');
+  const [attributes, setAttributes] = useState({});
+  if (mode === 'material') return <main className="p-5"><label>Nicho<select value={niche} onChange={event => setNiche(event.target.value)}>{['CLOTHING', 'CONSTRUCTION', 'PHONE_REPAIR', 'IT_SUPPORT', 'COSMETICS', 'BEVERAGES', 'OTHER'].map(value => <option key={value}>{value}</option>)}</select></label><NicheProductFields niche={niche} brand="" attributes={attributes} onBrandChange={() => {}} onAttributesChange={setAttributes} /></main>;
   if (mode === 'login') return <LoginForm />;
   if (mode === 'brand') return <main className="p-5"><StoreBrand /><button onClick={() => window.dispatchEvent(new Event('montante:brand-updated'))}>Atualizar logo</button></main>;
   if (mode === 'admin') return <StoreActions store={{ id: 'qa-store', name: 'Loja de teste', slug: 'loja-teste', active: true, planOverride: 'automatic', protected: false }} onChanged={() => setSales(value => value + 1)} />;

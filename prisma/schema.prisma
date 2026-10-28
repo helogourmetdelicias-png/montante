@@ -253,6 +253,7 @@ model Product {
   category         String?
   brand            String?
   image_url        String?
+  /// Optional niche attributes, including material (string or null).
   attributes       Json?
   is_active        Boolean  @default(true)
   created_at       DateTime @default(now())

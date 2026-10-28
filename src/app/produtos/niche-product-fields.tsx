@@ -1,9 +1,10 @@
 'use client';
+import { useId } from 'react';
 
 import { Input } from '@/components/ui/input';
 import { MoneyInput } from '@/components/ui/money-input';
 import type { BusinessNiche } from '@/lib/business-niche';
-import { PRODUCT_GENDERS, PRODUCT_PACKAGING, type ProductAttributes } from '@/lib/product-attributes';
+import { getMaterialSuggestions, getNicheAttributeKeys, PRODUCT_GENDERS, PRODUCT_PACKAGING, type ProductAttributes } from '@/lib/product-attributes';
 
 type Props = {
   niche: BusinessNiche | null;
@@ -14,11 +15,13 @@ type Props = {
 };
 
 export default function NicheProductFields({ niche, brand, attributes, onBrandChange, onAttributesChange }: Props) {
+  const materialId = useId();
   function text(key: 'volume' | 'expiryDate' | 'lot' | 'size' | 'color', label: string, placeholder?: string, type = 'text') {
     return <label className="block text-sm font-medium">{label}<Input type={type} maxLength={120} placeholder={placeholder} value={attributes[key] ?? ''} onChange={event => onAttributesChange({ ...attributes, [key]: event.target.value || null })} className="mt-2 h-10 font-normal" /></label>;
   }
 
   return <>
+    {getNicheAttributeKeys(niche).includes('material') && <div className="space-y-2"><label htmlFor={materialId} className="block text-sm font-medium">Material (opcional)</label><Input id={materialId} list={`${materialId}-options`} maxLength={120} value={attributes.material ?? ''} placeholder="Selecione uma sugestão ou digite o material" onChange={event => onAttributesChange({ ...attributes, material: event.target.value || null })} className="h-10 font-normal" /><datalist id={`${materialId}-options`}>{getMaterialSuggestions(niche).map(material => <option key={material} value={material} />)}</datalist></div>}
     {(niche === 'COSMETICS' || niche === 'CONSTRUCTION') && <label className="block text-sm font-medium">{niche === 'COSMETICS' ? 'Marca / Linha' : 'Marca / Fabricante'}<Input value={brand} maxLength={80} placeholder={niche === 'COSMETICS' ? 'Ex.: Natura, Boticário, Avon' : 'Ex.: Tigre, Vedacit, Suvinil'} onChange={event => onBrandChange(event.target.value)} className="mt-2 h-10 font-normal" /></label>}
     {niche === 'COSMETICS' && <>
       {text('volume', 'Volume / Conteúdo', 'Ex.: 100ml, 50g')}

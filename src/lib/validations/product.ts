@@ -16,6 +16,7 @@ const quantity = z.number()
 
 const optionalText = z.string().trim().max(120).nullable().optional();
 export const productAttributesSchema = z.object({
+  material: optionalText,
   volume: optionalText,
   expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => {
     const date = new Date(`${value}T00:00:00Z`);
