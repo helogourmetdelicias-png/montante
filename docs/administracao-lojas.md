@@ -11,3 +11,5 @@ Excluir definitivamente remove a loja, usuários e dados relacionados. A ação 
 Nenhuma conta real foi excluída durante a implantação. Os testes de exclusão usaram somente um schema PostgreSQL temporário, removido ao terminar.
 
 O login não mostra mais lista de contas locais. Para salvar login e senha, use o gerenciador nativo do navegador. Ele decide quando mostrar confirmação e pode exigir desbloqueio do dispositivo. Senhas não são persistidas em localStorage pela aplicação.
+
+Tentativas de Pix manual/maquininha externa em vendas canceladas são consideradas abandonadas e não bloqueiam a exclusão administrativa, conforme a mesma regra do fechamento de caixa. Pedidos de pagamento externos ainda pendentes permanecem protegidos; cancelar apenas a venda não cancela automaticamente esses pedidos.

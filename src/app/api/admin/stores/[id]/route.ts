@@ -6,6 +6,7 @@ import { ADMIN_PLANS, assertDeletableStore, managedPlan } from '@/lib/platform-m
 import { assertSameOrigin, RequestError } from '@/lib/security/request';
 import { imageStorage, IMAGE_BUCKET } from '@/lib/media/storage';
 import { billingCycle } from '@/lib/billing';
+import { isAbandonedManualCharge } from '@/lib/cash-register/pending';
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 const change = z.object({ plan: z.enum(ADMIN_PLANS).optional(), active: z.boolean().optional() }).strict().refine(v => v.plan !== undefined || v.active !== undefined);
@@ -38,7 +39,8 @@ async function handle(request: Request, context: { params: Promise<{ id: string 
         return [] as string[];
       }
       assertDeletableStore(actor.tenant_id, { id, slug: store.slug, admins: store.users.length }, (input.data as { confirmation: string }).confirmation);
-      const pending = await tx.paymentAttempt.count({ where: { tenant_id: id, provider: { not: 'cash' }, OR: [{ status: { in: ['CREATED', 'PENDING'] } }, { status: 'APPROVED', sale: { status: 'pending' } }] } });
+      const attempts = await tx.paymentAttempt.findMany({ where: { tenant_id: id, provider: { not: 'cash' }, OR: [{ status: { in: ['CREATED', 'PENDING'] } }, { status: 'APPROVED', sale: { status: 'pending' } }] }, select: { provider: true, sale: { select: { status: true } } } });
+      const pending = attempts.some(attempt => !isAbandonedManualCharge(attempt.sale.status, attempt.provider));
       const billing = await tx.billingRecord.count({ where: { tenant_id: id, status: { in: ['pending', 'overdue'] }, OR: [{ external_payment_id: { not: null } }, { checkout_url: { not: null } }] } });
       if (pending || billing) throw new RequestError('Resolva as cobranças externas pendentes antes de excluir esta loja.', 409);
       const assets = await tx.mediaAsset.findMany({ where: { tenant_id: id }, select: { storage_path: true } });

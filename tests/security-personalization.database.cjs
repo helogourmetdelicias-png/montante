@@ -187,8 +187,12 @@ async function checkStatus(response, expected) { assert.equal(response.status, e
     const credit = await db.creditSale.create({ data: { tenant_id: b.id, sale_id: sale.id, customer_id: customer.id, amount: '10' } });
     await db.creditPayment.create({ data: { tenant_id: b.id, credit_sale_id: credit.id, user_id: userB.id, session_id: cash.id, amount: '2', method: 'CASH', idempotency_key: 'qa-delete-credit' } });
     const pendingAttempt = await db.paymentAttempt.create({ data: { tenant_id: b.id, sale_id: sale.id, provider: 'mercadopago', method: 'PIX', channel: 'ONLINE', status: 'PENDING', amount: '10', idempotency_key: 'qa-delete-pending' } });
+    await db.sale.update({ where: { id: sale.id }, data: { status: 'cancelled' } });
+    // Cancelling a sale does not cancel a payable external order.
     await checkStatus(await manage('DELETE', b.id, { confirmation: b.slug }), 409);
     await db.paymentAttempt.update({ where: { id: pendingAttempt.id }, data: { status: 'CANCELLED' } });
+    // Abandoned manual Pix on a cancelled sale must not masquerade as external debt.
+    await db.paymentAttempt.create({ data: { tenant_id: b.id, sale_id: sale.id, provider: 'pix_manual', method: 'PIX', channel: 'IN_PERSON', status: 'PENDING', amount: '10', idempotency_key: 'qa-abandoned-manual' } });
     await checkStatus(await manage('DELETE', b.id, { confirmation: b.slug }), 200);
     assert.equal(await db.tenant.count({ where: { id: b.id } }), 0);
     assert.equal(await db.user.count({ where: { id: userB.id } }), 0);

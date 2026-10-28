@@ -403,3 +403,11 @@ Instruções e limites em docs/autenticacao-imagens-protecao-tela.md.
 - [x] Corrigido cadastro que mostrava mensagem de falha de código mesmo após sucesso; agora encaminha para o login.
 - [x] Mantido Resend apenas para recuperação de senha; SDK redundante removido e envio HTTP preservado. Migrações/tabelas compartilhadas com tickets e recuperação mantidas.
 - [x] Validação desta correção: 75 testes de regressão, 38 Vitest, 35 verificações HTTP com banco isolado e cinco Playwright aprovados; TypeScript e build de produção aprovados. Nenhum e-mail real enviado, nenhuma conta/loja real criada ou excluída; sem nova migração.
+- [x] Publicação confirmada em 28/10/2026: commit 7cc1fd8, implantação HJ1bf9kKygkt6H5Rqq2ucxrwLhGJ na Vercel montante-um2r, Ready e Current no domínio de produção. Login/health 200; PDV/admin/personalização sem sessão protegidos (307); diagnóstico público não retorna configurações. Logo validada em teste de navegador e persistência em banco isolado; nenhum dado real alterado.
+
+## Pendência indevida na exclusão da loja — 28/10/2026
+
+- [x] Conferência somente de leitura da Showdebola: venda #1 concluída por Pix manual; venda #2 cancelada, com tentativa Pix manual ainda PENDING; nenhuma mensalidade registrada. Nenhum registro real alterado ou excluído.
+- [x] Exclusão administrativa passou a reutilizar isAbandonedManualCharge, já utilizada pelo Caixa: tentativas manuais de vendas canceladas não são cobranças externas ativas. Cobranças de provedores externos continuam bloqueando a exclusão.
+- [x] Regressão em schema temporário reproduz venda cancelada com cobrança externa pendente (bloqueia) e Pix manual abandonado (permite exclusão apenas da fixture).
+- [x] Validações aprovadas: 38 Vitest, 35 verificações HTTP/integradas em schema temporário, TypeScript/lint e build de produção; avisos anteriores de lint preservados. Nenhum pagamento real consultado em provedor ou cancelado; nenhuma exclusão da Showdebola executada.
