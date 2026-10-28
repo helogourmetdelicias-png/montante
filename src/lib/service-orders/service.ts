@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { encryptCredentials } from '@/lib/encryption';
 import { canTransitionServiceOrder, type ServiceOrderInput } from './validation';
+import { mediaId } from '../media/types';
 
 export class ServiceOrderError extends Error {
   constructor(message: string, readonly status = 409) { super(message); }
@@ -24,6 +25,10 @@ export function serializeServiceOrder(order: Order) {
 }
 
 export async function saveServiceOrder(tx: Prisma.TransactionClient, tenantId: string, input: ServiceOrderInput, edit?: { id: string; version: number; status: 'PENDING_APPROVAL' | 'IN_PROGRESS' | 'READY' | 'CANCELLED' }) {
+  const photoIds = [...new Set(input.photoUrls.map(mediaId).filter((id): id is string => !!id))];
+  if (photoIds.length && await tx.mediaAsset.count({ where: { id: { in: photoIds }, tenant_id: tenantId, purpose: 'service-order' } }) !== photoIds.length) {
+    throw new ServiceOrderError('Uma das fotos não pertence a esta loja.', 403);
+  }
   if (edit) {
     const order = await tx.serviceOrder.findFirst({ where: { id: edit.id, tenant_id: tenantId }, include: { sales: { where: { status: { not: 'cancelled' } }, select: { id: true } } } });
     if (!order) throw new ServiceOrderError('Ordem de serviço não encontrada.', 404);

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getNicheAttributeKeys } from '@/lib/product-attributes';
 import { NextResponse } from 'next/server';
+import { assertImageOwnership } from '@/lib/media/storage';
+import { RequestError } from '@/lib/security/request';
 import { createProductSchema } from '@/lib/validations/product';
 
 export const runtime = 'nodejs';
@@ -24,6 +26,7 @@ function toProductResponse(product: {
   stock_shelf: string | null;
   category: string | null;
   brand: string | null;
+  image_url?: string | null;
   attributes: Prisma.JsonValue;
   is_active: boolean;
   created_at: Date;
@@ -45,6 +48,7 @@ function toProductResponse(product: {
     stockShelf: product.stock_shelf,
     category: product.category,
     brand: product.brand,
+    imageUrl: product.image_url ?? null,
     attributes: product.attributes ?? {},
     isActive: product.is_active,
     createdAt: product.created_at,
@@ -146,6 +150,8 @@ export async function POST(request: Request) {
   }
 
   const input = parsed.data;
+  try { if (input.imageUrl) await assertImageOwnership([input.imageUrl], access.tenantId, 'product'); }
+  catch (error) { return NextResponse.json({ error: error instanceof RequestError ? error.message : 'Imagem inválida.' }, { status: error instanceof RequestError ? error.status : 500 }); }
   if (input.attributes && Object.keys(input.attributes).length) {
     const tenant = await prisma.tenant.findUnique({ where: { id: access.tenantId }, select: { niche: true } });
     if (!tenant) return NextResponse.json({ error: 'Loja não encontrada.' }, { status: 404 });
@@ -187,6 +193,7 @@ export async function POST(request: Request) {
       stock_shelf: cleanText(input.stockShelf),
       category: cleanText(input.category),
       brand: cleanText(input.brand),
+      image_url: input.imageUrl ?? null,
       ...(input.attributes !== undefined ? { attributes: input.attributes } : {}),
       is_active: input.isActive,
     },

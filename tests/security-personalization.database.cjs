@@ -1,0 +1,174 @@
+// Uses a disposable PostgreSQL schema. Never changes application accounts or sends real email.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const Module = require('node:module');
+const { execFileSync } = require('node:child_process');
+const { randomUUID } = require('node:crypto');
+const ts = require('typescript');
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
+const sharp = require('sharp');
+const originalUrl = process.env.DATABASE_URL;
+assert.ok(originalUrl, 'Load .env first');
+const schema = `qa_security_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+assert.match(schema, /^qa_security_[a-f0-9]{12}$/);
+const testUrl = new URL(originalUrl); testUrl.searchParams.set('schema', schema);
+const admin = new PrismaClient({ datasources: { db: { url: originalUrl } } });
+const db = new PrismaClient({ datasources: { db: { url: testUrl.toString() } } });
+let currentSession = null;
+const mails = [], objects = new Map();
+const storage = {
+  getBucket: async () => ({ data: { public: false }, error: null }),
+  from: () => ({
+    upload: async (key, bytes) => { objects.set(key, bytes); return { error: null }; },
+    remove: async keys => { keys.forEach(key => objects.delete(key)); return { error: null }; },
+    download: async key => ({ data: objects.has(key) ? new Blob([objects.get(key)]) : null, error: objects.has(key) ? null : new Error('Missing') }),
+  }),
+};
+const resolve = Module._resolveFilename;
+Module._resolveFilename = function (name, ...args) { return resolve.call(this, name.startsWith('@/') ? path.join(process.cwd(), 'src', name.slice(2)) : name, ...args); };
+for (const extension of ['.ts', '.tsx']) require.extensions[extension] = (mod, filename) => mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX } }).outputText, filename);
+const load = Module._load;
+Module._load = function (name, ...args) {
+  if (name === '@/auth') return { auth: async () => currentSession };
+  if (name === '@supabase/supabase-js') return { createClient: () => ({ storage }) };
+  return load.call(this, name, ...args);
+};
+require.cache[require.resolve('../src/lib/prisma.ts')] = { exports: { prisma: db } };
+process.env.AUTH_SECRET = 'qa-security-secret-not-used-for-production';
+process.env.BREVO_API_KEY = 'mock-brevo-key'; process.env.AUTH_EMAIL_FROM = 'qa@example.invalid';
+process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'https://example.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'mock';
+const originalFetch = global.fetch;
+global.fetch = async (url, options) => {
+  assert.equal(String(url), 'https://api.brevo.com/v3/smtp/email', 'No external messages or requests');
+  const mail = JSON.parse(options.body); mails.push({ ...mail, code: mail.textContent.match(/\b(\d{6})\b/)[1] });
+  return Response.json({ messageId: 'mock' });
+};
+const cookies = (result, name) => new RegExp(`${name}=([^;]+)`).exec(result.headers.get('set-cookie') ?? '')?.[1];
+const request = (url, body, cookie = '', method = 'POST') => new Request(`https://montante.test${url}`, { method, headers: { origin: 'https://montante.test', cookie, ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: body instanceof FormData ? body : JSON.stringify(body) }) });
+let assertions = 0;
+async function checkStatus(response, expected) { assert.equal(response.status, expected, await response.clone().text()); assertions++; return response.json().catch(() => null); }
+
+(async () => {
+  await admin.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
+  try {
+    execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate'], { env: { ...process.env, DATABASE_URL: testUrl.toString(), DIRECT_URL: testUrl.toString() }, stdio: 'pipe' });
+    const security = require('../src/lib/security/auth-flow.ts');
+    const loginRoute = require('../src/app/api/auth/security/[action]/route.ts');
+    const mediaRoute = require('../src/app/api/media/route.ts');
+    const mediaRead = require('../src/app/api/media/[id]/route.ts');
+    const settings = require('../src/app/api/settings/screensaver/route.ts');
+    const personalization = require('../src/app/api/settings/personalization/route.ts');
+    const { saveServiceOrder } = require('../src/lib/service-orders/service.ts');
+    const storageLibrary = require('../src/lib/media/storage.ts');
+    const password = 'QaSecurePassword123!';
+    const password_hash = await bcrypt.hash(password, 4);
+    const a = await db.tenant.create({ data: { name: 'QA A', slug: `qa-a-${schema}` } });
+    const b = await db.tenant.create({ data: { name: 'QA B', slug: `qa-b-${schema}` } });
+    const email = 'shared@example.invalid';
+    const userA = await db.user.create({ data: { tenant_id: a.id, name: 'QA A', email, password_hash, role: 'owner' } });
+    const userB = await db.user.create({ data: { tenant_id: b.id, name: 'QA B', email, password_hash, role: 'owner' } });
+    const obsoleteTicket = await security.issueTicket(userB, 'b'.repeat(64));
+    await db.trustedDevice.create({ data: { user_id: userB.id, token_hash: security.secretHash('b'.repeat(64)), auth_version: 0, expires_at: new Date(Date.now() + 86400000) } });
+    const call = (action, body, cookie = '') => loginRoute.POST(request(`/api/auth/security/${action}`, body, cookie), { params: Promise.resolve({ action }) });
+    const choose = await checkStatus(await call('start', { email, password }), 200);
+    assert.equal(choose.stores.length, 2); assert.equal(mails.length, 0);
+    await checkStatus(await call('start', { email, password: 'Incorrect123' }), 401);
+    await checkStatus(await call('start', { email, password, tenantChoice: 'foreign-store' }), 401);
+    let start = await call('start', { email, password, tenantChoice: a.id });
+    let data = await checkStatus(start, 200);
+    let flow = cookies(start, security.FLOW_COOKIE);
+    assert.ok(flow); assert.match(start.headers.get('set-cookie'), /HttpOnly/i);
+    const jar = `${security.FLOW_COOKIE}=${flow}`;
+    const code = mails.at(-1).code;
+    assert.equal(JSON.stringify(data).includes(code), false);
+    await checkStatus(await call('verify', { challengeId: data.challengeId, code }, `${security.FLOW_COOKIE}=${'f'.repeat(64)}`), 400);
+    await checkStatus(await call('verify', { challengeId: data.challengeId, code: code === '000000' ? '111111' : '000000' }, jar), 400);
+    const verified = await call('verify', { challengeId: data.challengeId, code }, jar);
+    const proof = await checkStatus(verified, 200);
+    const device = cookies(verified, security.DEVICE_COOKIE);
+    assert.ok(device);
+    assert.equal(await security.consumeLoginTicket(proof.ticket, 'f'.repeat(64)), null);
+    assert.equal((await security.consumeLoginTicket(proof.ticket, flow)).tenant_id, a.id);
+    assert.equal(await security.consumeLoginTicket(proof.ticket, flow), null);
+    await checkStatus(await call('verify', { challengeId: data.challengeId, code }, jar), 400);
+    const mailCount = mails.length;
+    const known = await checkStatus(await call('start', { email, password, tenantChoice: a.id }, `${security.DEVICE_COOKIE}=${device}`), 200);
+    assert.ok(known.ticket); assert.equal(mails.length, mailCount);
+    // An unverified/new device still requires email and stale challenges are unusable.
+    start = await call('start', { email, password, tenantChoice: a.id }); data = await checkStatus(start, 200);
+    flow = cookies(start, security.FLOW_COOKIE);
+    await db.authChallenge.update({ where: { id: data.challengeId }, data: { expires_at: new Date(Date.now() - 1) } });
+    await checkStatus(await call('verify', { challengeId: data.challengeId, code: mails.at(-1).code }, `${security.FLOW_COOKIE}=${flow}`), 400);
+    // The reset never reveals store names until ownership of the mailbox is proved.
+    const unknown = await checkStatus(await call('forgot', { email: 'unknown@example.invalid' }), 200);
+    assert.ok(unknown.challengeId); assert.equal(unknown.stores, undefined);
+    const forgot = await call('forgot', { email }); const forgotData = await checkStatus(forgot, 200);
+    const resetFlow = cookies(forgot, security.FLOW_COOKIE), resetJar = `${security.FLOW_COOKIE}=${resetFlow}`;
+    const resetProof = await checkStatus(await call('verify', { challengeId: forgotData.challengeId, code: mails.at(-1).code }, resetJar), 200);
+    assert.equal(resetProof.stores.length, 2);
+    assert.equal(await security.consumeLoginTicket(resetProof.resetTicket, resetFlow), null);
+    await checkStatus(await call('reset', { ticket: resetProof.resetTicket, password: 'NewSecurePassword123!', confirmPassword: 'NewSecurePassword123!', tenantChoice: 'foreign' }, resetJar), 400);
+    await checkStatus(await call('reset', { ticket: resetProof.resetTicket, password: 'NewSecurePassword123!', confirmPassword: 'NewSecurePassword123!', tenantChoice: b.id }, resetJar), 200);
+    assert.equal((await db.user.findUnique({ where: { id: userA.id } })).auth_version, 0);
+    assert.equal((await db.user.findUnique({ where: { id: userB.id } })).auth_version, 1);
+    assert.ok(await bcrypt.compare('NewSecurePassword123!', (await db.user.findUnique({ where: { id: userB.id } })).password_hash));
+    assert.equal(await db.trustedDevice.count({ where: { user_id: userB.id } }), 0);
+    assert.equal(await security.consumeLoginTicket(obsoleteTicket, 'b'.repeat(64)), null);
+    assert.deepEqual((await security.findLoginUsers(email, 'NewSecurePassword123!')).map(user => user.tenant_id), [b.id]);
+    await checkStatus(await call('reset', { ticket: resetProof.resetTicket, password: 'NewSecurePassword123!', confirmPassword: 'NewSecurePassword123!', tenantChoice: b.id }, resetJar), 400);
+    // Session-dependent image/settings routes use real isolated tenant records.
+    currentSession = { user: { id: userA.id, tenantId: a.id, role: 'owner' } };
+    const png = await sharp({ create: { width: 32, height: 24, channels: 4, background: '#ea580c' } }).png().toBuffer();
+    const multipart = purpose => { const form = new FormData(); form.set('file', new File([png], 'private-photo.png', { type: 'image/png' })); form.set('purpose', purpose); return form; };
+    const uploaded = await checkStatus(await mediaRoute.POST(request('/api/media', multipart('screensaver'))), 201);
+    const assetId = uploaded.url.split('/').at(-1);
+    const asset = await db.mediaAsset.findUnique({ where: { id: assetId } });
+    assert.ok(asset.storage_path.startsWith(`${a.id}/screensaver/`)); assert.equal(asset.mime_type, 'image/webp');
+    const metadata = await sharp(objects.get(asset.storage_path)).metadata(); assert.equal(metadata.exif, undefined);
+    await assert.rejects(() => storageLibrary.normalizeImage(Buffer.from('<svg></svg>'), 'image/png'));
+    await checkStatus(await settings.PATCH(request('/api/settings/screensaver', { minutes: 5, imageUrl: uploaded.url })), 200);
+    assert.equal((await db.tenant.findUnique({ where: { id: a.id } })).screensaver_minutes, 5);
+    const read = await mediaRead.GET(request(uploaded.url, undefined, '', 'GET'), { params: Promise.resolve({ id: assetId }) }); assert.equal(read.status, 200);
+    currentSession = { user: { id: userB.id, tenantId: b.id, role: 'owner' } };
+    assert.equal((await mediaRead.GET(request(uploaded.url, undefined, '', 'GET'), { params: Promise.resolve({ id: assetId }) })).status, 404);
+    await checkStatus(await settings.PATCH(request('/api/settings/screensaver', { minutes: 5, imageUrl: uploaded.url })), 403);
+    await assert.rejects(() => db.$transaction(tx => saveServiceOrder(tx, b.id, { photoUrls: [uploaded.url], parts: [] })), /não pertence/);
+    currentSession = { user: { id: userA.id, tenantId: a.id, role: 'staff' } };
+    await checkStatus(await mediaRoute.POST(request('/api/media', multipart('logo'))), 403);
+    await checkStatus(await settings.PATCH(request('/api/settings/screensaver', { minutes: 0, imageUrl: '' })), 403);
+    currentSession = { user: { id: userA.id, tenantId: a.id, role: 'owner' } };
+    await checkStatus(await settings.PATCH(request('/api/settings/screensaver', { minutes: 3, imageUrl: uploaded.url })), 400);
+    await checkStatus(await personalization.PATCH(request('/api/settings/personalization', { avatarUrl: uploaded.url })), 403);
+    await checkStatus(await settings.PATCH(request('/api/settings/screensaver', { minutes: 0, imageUrl: '' })), 200);
+    const lockFlow = security.opaqueToken();
+    const currentA = await db.user.findUnique({ where: { id: userA.id } });
+    const lockedChallenge = await security.issueChallenge(currentA, 'login', lockFlow);
+    const lockedCode = mails.at(-1).code;
+    for (let attempt = 0; attempt < 5; attempt++) await assert.rejects(() => security.verifyChallenge(lockedChallenge, '000000', lockFlow));
+    await assert.rejects(() => security.verifyChallenge(lockedChallenge, lockedCode, lockFlow));
+    const register = require('../src/app/api/auth/register/route.ts');
+    const registerData = { name: 'QA Signup', email: 'new-account@example.invalid', password, confirmPassword: password, tenantName: 'QA Signup', tenantSlug: `qa-signup-${randomUUID().slice(0, 8)}`, niche: 'OTHER' };
+    const registration = await register.POST(request('/api/auth/register', registerData));
+    const registered = await checkStatus(registration, 201);
+    assert.ok(registered.verificationRequired); assert.ok(registered.challengeId);
+    const signup = await db.user.findFirst({ where: { email: registerData.email } });
+    assert.equal(signup.email_verified, null);
+    const signupFlow = cookies(registration, security.FLOW_COOKIE);
+    const signupProof = await checkStatus(await call('verify', { challengeId: registered.challengeId, code: mails.at(-1).code }, `${security.FLOW_COOKIE}=${signupFlow}`), 200);
+    assert.equal((await security.consumeLoginTicket(signupProof.ticket, signupFlow)).id, signup.id);
+    const oldKey = process.env.BREVO_API_KEY; delete process.env.BREVO_API_KEY;
+    await checkStatus(await register.POST(request('/api/auth/register', { ...registerData, tenantSlug: 'must-not-be-created' })), 503);
+    assert.equal(await db.tenant.count({ where: { slug: 'must-not-be-created' } }), 0);
+    process.env.BREVO_API_KEY = oldKey;
+    const crossOrigin = new Request('https://montante.test/api/auth/security/forgot', { method: 'POST', headers: { origin: 'https://attacker.test', 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+    await checkStatus(await loginRoute.POST(crossOrigin, { params: Promise.resolve({ action: 'forgot' }) }), 403);
+    console.log(`PASS: ${assertions} HTTP checks plus OTP/device/ticket/reset, duplicate emails, exact tenant isolation, private images, image decoding and screensaver persistence. Emails/storage mocked; production data untouched.`);
+  } finally {
+    await db.$disconnect();
+    assert.match(schema, /^qa_security_[a-f0-9]{12}$/);
+    await admin.$executeRawUnsafe(`DROP SCHEMA "${schema}" CASCADE`);
+    console.log('Disposable test schema removed.');
+  }
+})().catch(error => { console.error(error.stack?.replace(/postgres(?:ql)?:\/\/[^\s]+/g, '[redacted connection]') ?? error.name); process.exitCode = 1; }).finally(async () => { global.fetch = originalFetch; await admin.$disconnect(); });

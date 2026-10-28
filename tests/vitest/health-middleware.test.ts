@@ -1,12 +1,12 @@
 import { expect, it, vi } from 'vitest';
 
-vi.mock('@/auth', () => ({ auth: (handler: unknown) => handler }));
+vi.mock('next-auth/jwt', () => ({ getToken: vi.fn().mockResolvedValue(null) }));
 import middleware from '@/middleware';
 
 it('only exposes the exact health path and preserves protected routes', async () => {
   async function request(path: string) {
     const url = `https://example.com${path}`;
-    return await middleware({ auth: null, nextUrl: new URL(url), url } as never, {} as never) as Response;
+    return await middleware({ nextUrl: new URL(url), url } as never) as Response;
   }
   const healthy = await request('/api/health');
   expect(healthy.status).toBe(200);

@@ -23,5 +23,6 @@ declare module 'next-auth/jwt' {
     tenantSlug: string;
     role: string;
     isPlatformAdmin?: boolean;
+    authVersion?: number;
   }
 }

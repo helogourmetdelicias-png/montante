@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PRODUCT_GENDERS, PRODUCT_PACKAGING } from '../product-attributes';
+import { isMediaPath } from '../media/types';
 
 const money = z.number()
   .finite()
@@ -44,6 +45,7 @@ const productFields = {
   stockShelf: z.string().trim().max(80).nullable().optional(),
   category: z.string().trim().max(80).nullable().optional(),
   brand: z.string().trim().max(80).nullable().optional(),
+  imageUrl: z.string().max(200).refine(isMediaPath).nullable().optional(),
   attributes: productAttributesSchema.optional(),
   isActive: z.boolean().default(true),
 };

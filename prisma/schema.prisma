@@ -77,6 +77,8 @@ model Tenant {
   address_state        String?  @db.Char(2)
   address_zip          String?
   logo_url             String?
+  screensaver_url      String?
+  screensaver_minutes  Int      @default(0)
   is_active            Boolean  @default(true)
   plan_tier            String   @default("free")
   sales_sequence       Int      @default(0)
@@ -97,6 +99,7 @@ model Tenant {
   credit_sales            CreditSale[]
   credit_payments         CreditPayment[]
   brand_commissions       BrandCommission[]
+  media_assets            MediaAsset[]
   cash_register_sessions  CashRegisterSession[]
   cash_register_movements CashRegisterMovement[]
 }
@@ -107,6 +110,7 @@ model User {
   name           String
   email          String
   email_verified DateTime?
+  auth_version   Int       @default(0)
   password_hash  String?
   credit_payments CreditPayment[]
   pin_hash       String?
@@ -123,6 +127,9 @@ model User {
   tenant                  Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   accounts                Account[]
   sessions                Session[]
+  auth_challenges         AuthChallenge[]
+  trusted_devices         TrustedDevice[]
+  media_assets            MediaAsset[]
   cash_register_sessions  CashRegisterSession[]
   cash_register_movements CashRegisterMovement[]
 
@@ -158,6 +165,57 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model AuthChallenge {
+  id              String    @id @default(cuid())
+  user_id         String
+  purpose         String
+  code_hash       String?
+  token_hash      String?   @unique
+  flow_hash       String
+  credential_hash String
+  attempts        Int       @default(0)
+  expires_at      DateTime
+  consumed_at     DateTime?
+  created_at      DateTime  @default(now())
+  user            User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  @@index([user_id, purpose])
+  @@index([expires_at])
+}
+
+model TrustedDevice {
+  id           String   @id @default(cuid())
+  user_id      String
+  token_hash   String
+  auth_version Int
+  expires_at   DateTime
+  created_at   DateTime @default(now())
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  @@unique([user_id, token_hash])
+  @@index([expires_at])
+}
+
+model AuthThrottle {
+  key        String   @id
+  count      Int      @default(0)
+  expires_at DateTime
+  @@index([expires_at])
+}
+
+model MediaAsset {
+  id           String   @id @default(cuid())
+  tenant_id    String
+  user_id      String
+  purpose      String
+  storage_path String   @unique
+  mime_type    String
+  size         Int
+  created_at   DateTime @default(now())
+  tenant       Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  @@index([tenant_id, purpose])
+  @@index([user_id, created_at])
+}
+
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -183,6 +241,7 @@ model Product {
   stock_shelf      String?
   category         String?
   brand            String?
+  image_url        String?
   attributes       Json?
   is_active        Boolean  @default(true)
   created_at       DateTime @default(now())

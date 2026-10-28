@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isMediaPath } from '../media/types';
 
 export const SERVICE_STATUSES = ['PENDING_APPROVAL', 'IN_PROGRESS', 'READY', 'COMPLETED', 'CANCELLED'] as const;
 export const SERVICE_STATUS_LABELS: Record<typeof SERVICE_STATUSES[number], string> = {
@@ -16,7 +17,7 @@ const fields = {
   devicePassword: z.string().max(200).optional(),
   removePassword: z.boolean().optional(),
   laborTotal: money,
-  photoUrls: z.array(z.string().trim().url().max(2000).refine(url => new URL(url).protocol === 'https:', 'Use URLs HTTPS.')).max(10).default([]),
+  photoUrls: z.array(z.string().trim().max(2000).refine(url => { if (isMediaPath(url)) return true; try { return new URL(url).protocol === 'https:'; } catch { return false; } }, 'Use uma imagem enviada ou uma URL HTTPS.')).max(10).default([]),
   parts: z.array(z.object({
     productId: z.string().cuid(),
     quantity: z.number().finite().positive().max(9999999.999).refine(n => Math.abs(n * 1000 - Math.round(n * 1000)) < 0.000001),

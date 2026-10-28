@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { SERVICE_STATUS_LABELS, canTransitionServiceOrder } from '@/lib/service-orders/validation';
 import type { serializeServiceOrder } from '@/lib/service-orders/service';
 import { money } from '../vendas/format';
+import ImageUpload from '@/components/image-upload';
 
 type Order = ReturnType<typeof serializeServiceOrder>;
 type Part = { productId: string; name: string; quantity: string; unitPrice: string };
@@ -16,6 +17,7 @@ export default function ServiceOrderForm({ order }: { order?: Order }) {
   const [status, setStatus] = useState(order?.status ?? 'PENDING_APPROVAL');
   const [parts, setParts] = useState<Part[]>(order?.parts ?? []);
   const [photos, setPhotos] = useState(order?.photoUrls.join('\n') ?? '');
+  const [imageBusy, setImageBusy] = useState(false);
   const [removePassword, setRemovePassword] = useState(false);
   const [revealedPassword, setRevealedPassword] = useState('');
   const [query, setQuery] = useState('');
@@ -72,10 +74,10 @@ export default function ServiceOrderForm({ order }: { order?: Order }) {
           <label className="block max-w-xs text-sm font-medium">Mão de obra (R$)<input type="number" min="0" max="99999999.99" step="0.01" required className={control} value={draft.laborTotal} onChange={e => setDraft(d => ({ ...d, laborTotal: e.target.value }))} /></label>
           <dl className="space-y-2 border-t pt-4"><div className="flex justify-between"><dt>Peças</dt><dd>{money(partsTotal)}</dd></div><div className="flex justify-between"><dt>Mão de obra</dt><dd>{money(draft.laborTotal)}</dd></div><div className="flex justify-between text-xl font-semibold"><dt>Total da O.S.</dt><dd>{money(grandTotal)}</dd></div></dl>
         </section>
-        <section className="rounded-xl border bg-white p-5"><label className="block text-sm font-medium">Fotos do aparelho — URLs HTTPS (opcional)<textarea rows={3} className={control} value={photos} placeholder="Uma URL por linha, até 10 fotos" onChange={e => setPhotos(e.target.value)} /></label><p className="mt-2 text-xs text-slate-500">Use links autorizados para fotos do aparelho. O envio de arquivos não faz parte desta etapa.</p></section>
+        <section className="space-y-4 rounded-xl border bg-white p-5"><ImageUpload label="Fotos do aparelho" purpose="service-order" value="" onBusyChange={setImageBusy} disabled={busy || photos.split('\n').filter(Boolean).length >= 10} onChange={url => { if (url) { setPhotos(current => [...new Set([...current.split('\n').filter(Boolean), url])].join('\n')); setDirty(true); } }} /><label className="block text-sm font-medium">Imagens e links vinculados (até 10)<textarea rows={3} className={control} value={photos} placeholder="Uma URL por linha, até 10 fotos" onChange={e => setPhotos(e.target.value)} /></label><p className="mt-2 text-xs text-slate-500">Confirme cada imagem após conferir a prévia. Fotos enviadas ficam privadas na sua loja. Você também pode manter links HTTPS existentes.</p></section>
         {order && <label className="block text-sm font-medium">Situação<select aria-label="Situação" className={control} value={status} onChange={e => setStatus(e.target.value as typeof status)}>{Object.entries(SERVICE_STATUS_LABELS).filter(([key]) => key === order.status || canTransitionServiceOrder(order.status, key)).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><span className="mt-2 block text-xs font-normal text-slate-500">Marque como pronta após a aprovação e o serviço. A entrega é concluída somente pelo recebimento integral no caixa.</span></label>}
       </fieldset>
-      {!locked && <button disabled={busy} className="rounded-lg bg-orange-600 px-6 py-3 font-semibold text-white disabled:opacity-50">{busy ? 'Salvando…' : order ? 'Salvar alterações' : 'Criar ordem de serviço'}</button>}
+      {!locked && <button disabled={busy || imageBusy} className="rounded-lg bg-orange-600 px-6 py-3 font-semibold text-white disabled:opacity-50">{busy ? 'Salvando…' : order ? 'Salvar alterações' : 'Criar ordem de serviço'}</button>}
     </form>
     {order?.hasPassword && !['COMPLETED', 'CANCELLED'].includes(order.status) && <section className="rounded-lg border p-4"><button disabled={busy} type="button" className="text-sm text-orange-700 underline" onClick={() => revealedPassword ? setRevealedPassword('') : void showPassword()}>{revealedPassword ? 'Ocultar senha de testes' : 'Consultar senha de testes'}</button>{revealedPassword && <p className="mt-2 font-mono" role="status">{revealedPassword}</p>}</section>}
     {!!order?.photoUrls.length && <section className="rounded-xl border bg-white p-5"><h2 className="font-semibold">Fotos vinculadas</h2><ul className="mt-3 space-y-2">{order.photoUrls.map((url, i) => <li key={`${url}:${i}`}><a href={url} target="_blank" rel="noopener noreferrer" className="text-orange-700 underline">Abrir foto {i + 1}</a></li>)}</ul></section>}

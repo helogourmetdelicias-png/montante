@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import SecurityCode, { securityRequest, type VerificationResult } from '@/components/security-code';
 import { accountKey, forgetAccount, LEGACY_LOGIN_KEY, LOGIN_ACCOUNTS_KEY, parseAccount, parsePasswordCredentialId, passwordCredentialId, readLoginState, rememberAccount, writeLoginState, type SavedLoginAccount, type SavedLoginState } from '@/lib/saved-login-accounts';
 
 type BrowserPassword = Credential & { password: string };
@@ -22,6 +23,9 @@ export default function LoginForm({ initialAccounts = [] }: { initialAccounts?: 
   const [selected, setSelected] = useState('');
   const [remember, setRemember] = useState(true);
   const [passwordManager, setPasswordManager] = useState(false);
+  const [challenge, setChallenge] = useState<{ id: string; email: string } | null>(null);
+  const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
+  const [tenantChoice, setTenantChoice] = useState('');
   const tenantInput = useRef<HTMLInputElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
   const emailInput = useRef<HTMLInputElement>(null);
@@ -29,6 +33,7 @@ export default function LoginForm({ initialAccounts = [] }: { initialAccounts?: 
   const disabled = busy || retrieving;
 
   function fillAccount(account?: SavedLoginAccount) {
+    setStores([]); setTenantChoice('');
     if (tenantInput.current) tenantInput.current.value = account?.tenantSlug ?? '';
     if (nameInput.current) nameInput.current.value = account?.tenantName ?? '';
     if (emailInput.current) emailInput.current.value = account?.email ?? '';
@@ -95,11 +100,34 @@ export default function LoginForm({ initialAccounts = [] }: { initialAccounts?: 
   }
 
   function identityChanged() {
+    if (tenantInput.current) tenantInput.current.value = '';
     setSelected('');
     setError('');
     setNotice('');
+    setStores([]); setTenantChoice('');
     if (passwordInput.current) passwordInput.current.value = '';
     if (nameInput.current) nameInput.current.value = '';
+  }
+
+  async function completeLogin(proof: VerificationResult) {
+    if (!proof.ticket) throw new Error('A verificação expirou. Entre novamente.');
+    const requestedPath = new URLSearchParams(window.location.search).get('callbackUrl') ?? '/';
+    const callbackUrl = requestedPath.startsWith('/') && !requestedPath.startsWith('//') && !requestedPath.includes('\\') ? requestedPath : '/';
+    const result = await signIn('credentials', { loginTicket: proof.ticket, redirect: false, callbackUrl });
+    if (!result?.ok || result.error) throw new Error('Não foi possível abrir a sessão. Entre novamente.');
+    if (remember) {
+      try {
+        const session = await (await fetch('/api/auth/session', { cache: 'no-store' })).json();
+        const account = parseAccount({ tenantSlug: session.user.tenantSlug, email: session.user.email, tenantName: nameInput.current?.value });
+        if (account) {
+          persist(rememberAccount(state, account));
+          const PasswordCredential = (window as PasswordWindow).PasswordCredential;
+          if (PasswordCredential && navigator.credentials && passwordInput.current?.value) await navigator.credentials.store(new PasswordCredential({ id: passwordCredentialId(account), password: passwordInput.current.value, name: `${account.tenantName} — ${account.email}` }));
+        }
+      } catch { /* Saving optional browser credentials must not block sign-in. */ }
+    }
+    if (passwordInput.current) passwordInput.current.value = '';
+    window.location.assign(callbackUrl);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -111,41 +139,24 @@ export default function LoginForm({ initialAccounts = [] }: { initialAccounts?: 
     const rawEmail = String(form.get('email')).trim();
     // A browser may autofill the composite password-manager username directly.
     const credentialIdentity = parsePasswordCredentialId(rawEmail);
-    if (credentialIdentity && credentialIdentity.tenantSlug !== tenantSlug) {
+    if (tenantSlug && credentialIdentity && credentialIdentity.tenantSlug !== tenantSlug) {
       setError('A credencial preenchida pelo navegador pertence a outra loja. Selecione a conta correta.');
       return;
     }
     const email = credentialIdentity?.email ?? rawEmail.toLowerCase();
-    const account = parseAccount({ tenantSlug, email, tenantName: String(form.get('tenantName') ?? '') });
-    if (!account) { setError('Informe um identificador de loja e um e-mail válidos.'); return; }
     const password = String(form.get('password'));
     const query = new URLSearchParams(window.location.search);
     const requestedPath = query.get('callbackUrl') ?? '/';
     const callbackUrl = requestedPath.startsWith('/') && !requestedPath.startsWith('//') && !requestedPath.includes('\\') ? requestedPath : '/';
     setBusy(true);
     try {
-      const result = await signIn('credentials', { email, password, tenantSlug, redirect: false, callbackUrl });
-      if (!result?.ok || result.error) {
-        setError(['CallbackRouteError', 'Configuration'].includes(result?.error ?? '')
-          ? 'O sistema não conseguiu acessar o banco da loja. A conexão com o Supabase precisa ser configurada pelo administrador.'
-          : 'Não foi possível entrar. Confira o e-mail, a senha e o identificador da loja.');
-        setBusy(false);
-        return;
-      }
-      if (remember) {
-        persist(rememberAccount(state, account));
-        try {
-          const PasswordCredential = (window as PasswordWindow).PasswordCredential;
-          if (PasswordCredential && navigator.credentials) {
-            await navigator.credentials.store(new PasswordCredential({ id: passwordCredentialId(account), password, name: `${account.tenantName} — ${email}` }));
-          }
-        } catch { /* Saving a password must never block a successful sign-in. */ }
-      }
-      window.location.assign(result.url ?? callbackUrl);
-    } catch {
-      setError('O serviço de autenticação não respondeu. Tente novamente em instantes.');
-      setBusy(false);
-    }
+      const choice = tenantChoice || credentialIdentity?.tenantSlug || tenantSlug;
+      const result = await securityRequest('start', { email, password, ...(choice ? { tenantChoice: choice } : {}) });
+      if (result.stores) { setStores(result.stores); setNotice('Escolha a loja para esta conta.'); }
+      else if (result.challengeId) setChallenge({ id: result.challengeId, email });
+      else await completeLogin(result);
+    } catch (error) { setError(error instanceof Error ? error.message : 'Não foi possível entrar.'); }
+    finally { setBusy(false); }
   }
 
   return (
@@ -162,7 +173,7 @@ export default function LoginForm({ initialAccounts = [] }: { initialAccounts?: 
             <CardTitle className="text-xl">Entrar</CardTitle>
             <CardDescription>Suas contas ficam disponíveis neste navegador.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-5">{challenge && <SecurityCode challengeId={challenge.id} email={challenge.email} onVerified={completeLogin} onBack={() => setChallenge(null)} />}<div className={challenge ? 'hidden' : 'space-y-5'}>
             {state.accounts.length > 0 && <section className="space-y-2" aria-label="Contas salvas">
               <Label htmlFor="savedAccount">Contas salvas ({state.accounts.length})</Label>
               <select id="savedAccount" value={selected} onChange={event => selectAccount(event.target.value)} disabled={disabled} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
@@ -176,20 +187,21 @@ export default function LoginForm({ initialAccounts = [] }: { initialAccounts?: 
               <p className="text-xs text-muted-foreground">Remover apaga apenas o atalho daqui. Senhas salvas são gerenciadas nas configurações do navegador.</p>
             </section>}
             <form method="post" autoComplete="on" onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2"><Label htmlFor="tenantSlug">Identificador da loja</Label><Input ref={tenantInput} id="tenantSlug" name="tenantSlug" placeholder="ex.: minha-loja" autoCapitalize="none" autoCorrect="off" autoComplete="organization" required maxLength={100} disabled={disabled} onChange={identityChanged} /></div>
+              <input ref={tenantInput} name="tenantSlug" type="hidden" />
               <div className="space-y-2"><Label htmlFor="email">E-mail</Label><Input ref={emailInput} id="email" name="email" type="text" inputMode="email" autoCapitalize="none" autoCorrect="off" autoComplete="username" placeholder="voce@loja.com.br" required disabled={disabled} onChange={identityChanged} /></div>
               <div className="space-y-2"><Label htmlFor="password">Senha</Label><Input ref={passwordInput} id="password" name="password" type="password" autoComplete="current-password" required minLength={6} disabled={disabled} /></div>
+              <Link href="/recuperar-senha" className="inline-block text-sm font-medium text-orange-700 underline">Esqueci minha senha</Link>{stores.length > 1 && <label className="block text-sm">Escolha a loja<select required value={tenantChoice} onChange={event => setTenantChoice(event.target.value)} className="mt-2 block w-full rounded-lg border p-2"><option value="">Selecione uma loja</option>{stores.map(store => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>}
               {passwordManager && selected && <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => { const account = state.accounts.find(item => accountKey(item) === selected); if (account) void fillSavedPassword(account); }}>{retrieving ? 'Consultando navegador…' : 'Preencher senha salva'}</Button>}
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} disabled={disabled} className="h-4 w-4" />Salvar esta conta neste computador</label>
               <div className={remember ? 'space-y-2' : 'hidden'}><Label htmlFor="tenantName">Nome da loja na lista <span className="font-normal text-muted-foreground">(opcional)</span></Label><Input ref={nameInput} id="tenantName" name="tenantName" placeholder="ex.: Minha loja" autoComplete="off" maxLength={100} disabled={disabled} /></div>
-              <p className="text-xs text-muted-foreground">A loja e o e-mail são salvos após entrar. Para lembrar a senha, aceite salvá-la no gerenciador do navegador. No primeiro acesso a cada loja, informe a senha.</p>
+              <p className="text-xs text-muted-foreground">O atalho da conta é salvo após entrar. Para lembrar a senha, aceite salvá-la no gerenciador do navegador. Use apenas seu e-mail e senha.</p>
               {notice && <p role="status" className="rounded-md bg-muted p-3 text-sm">{notice}</p>}
               {error && <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
               <Button type="submit" className="w-full" disabled={disabled}>{disabled ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />{retrieving ? 'Consultando senha…' : 'Entrando…'}</> : <>Entrar <ArrowRight className="ml-2 h-4 w-4" /></>}</Button>
             </form>
-          </CardContent>
+          </div></CardContent>
         </Card>
-        <p className="mt-4 text-center text-xs text-muted-foreground">Se você não sabe o identificador da loja, peça ao administrador da conta.</p>
+        <p className="mt-4 text-center text-xs text-muted-foreground">Novos dispositivos são confirmados com um código enviado ao seu e-mail.</p>
         <p className="mt-3 text-center text-sm text-muted-foreground">Ainda não tem loja cadastrada? <Link href="/cadastro" className="font-medium text-primary underline-offset-4 hover:underline">Criar loja</Link></p>
       </div>
     </main>

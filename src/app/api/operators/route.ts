@@ -60,7 +60,11 @@ export async function PATCH(request: Request) {
     await prisma.user.updateMany({ where: { id: target.id, tenant_id: session.user.tenantId, role: 'staff' }, data: { is_active: input.active } });
   } else {
     const [password_hash, pin_hash] = await Promise.all([hash(input.password, 12), hash(input.pin, 12)]);
-    await prisma.user.updateMany({ where: { id: target.id, tenant_id: session.user.tenantId, role: 'staff' }, data: { password_hash, pin_hash, pin_failures: 0, pin_locked_until: null } });
+    await prisma.$transaction([
+      prisma.user.updateMany({ where: { id: target.id, tenant_id: session.user.tenantId, role: 'staff' }, data: { password_hash, pin_hash, pin_failures: 0, pin_locked_until: null, auth_version: { increment: 1 } } }),
+      prisma.trustedDevice.deleteMany({ where: { user_id: target.id } }),
+      prisma.authChallenge.updateMany({ where: { user_id: target.id, consumed_at: null }, data: { consumed_at: new Date() } }),
+    ]);
   }
   return NextResponse.json({ success: true });
 }
