@@ -1,9 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { runSerializableTransaction } from '@/lib/database/transactions';
-import { addBillingMonths, billingCycle, calculateBillingTier, completedSalesWhere, TRIAL_MONTHS } from '@/lib/billing';
+import { addBillingMonths, billingCycle, completedSalesWhere, TRIAL_MONTHS } from '@/lib/billing';
+import { managedPlan } from '@/lib/platform-management';
 export async function processTenantBilling(tenantId: string, now = new Date()) {
   return runSerializableTransaction(async (tx) => {
     const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    if (!tenant.is_active || tenant.billing_plan_override === 'free') return 0;
     const trialEnd = addBillingMonths(tenant.created_at, TRIAL_MONTHS);
     const sub = await tx.tenantSubscription.upsert({ where: { tenant_id: tenantId }, update: {},
       create: { tenant_id: tenantId, trial_ends_at: trialEnd, next_billing_at: trialEnd } });
@@ -15,7 +17,7 @@ export async function processTenantBilling(tenantId: string, now = new Date()) {
       const end = addBillingMonths(tenant.created_at, index);
       const billingEnd = addBillingMonths(tenant.created_at, index + 1);
       const count = await tx.sale.count({ where: completedSalesWhere(tenantId, start, end) });
-      const tier = calculateBillingTier(count);
+      const tier = managedPlan(tenant.billing_plan_override, count);
       await tx.billingRecord.upsert({
         where: { tenant_id_reference_month: { tenant_id: tenantId, reference_month: end.toISOString() } }, update: {},
         create: { tenant_id: tenantId, reference_month: end.toISOString(), cycle_start: start, cycle_end: end,
@@ -42,5 +44,5 @@ export async function getBillingSummary(tenantId: string, now = new Date()) {
     prisma.billingRecord.findMany({ where: { tenant_id: tenantId }, orderBy: { created_at: 'desc' }, take: 12 }),
   ]);
   return { cycle, count, trialEnd, trialDays: Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / 86400000)),
-    status: now < trialEnd ? 'TRIAL' : overdue ? 'OVERDUE' : 'ACTIVE', projection: calculateBillingTier(count), records };
+    status: tenant.billing_plan_override === 'free' ? 'FREE' : now < trialEnd ? 'TRIAL' : overdue ? 'OVERDUE' : 'ACTIVE', projection: managedPlan(tenant.billing_plan_override, count), managedPlan: tenant.billing_plan_override, records };
 }

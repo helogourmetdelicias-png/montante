@@ -23,7 +23,8 @@ export async function GET(request: Request) {
   const salePeriod = { status: 'completed', sold_at: { gte: period.startAt, lt: period.endBefore } };
   const [stores, total, active, trials, overdue, sales, paid, pending, filtered] = await Promise.all([
     prisma.tenant.findMany({ where, orderBy: [{ created_at: 'desc' }, { id: 'asc' }], skip: (page - 1) * 50, take: 50,
-      select: { id: true, name: true, slug: true, niche: true, is_active: true, created_at: true,
+      select: { id: true, name: true, slug: true, niche: true, is_active: true, created_at: true, billing_plan_override: true,
+        users: { where: { is_platform_admin: true }, select: { id: true } },
         subscription: { select: { status: true, trial_ends_at: true, next_billing_at: true } },
         billing_records: { orderBy: { created_at: 'desc' }, take: 1, select: { plan_tier: true, amount_due: true, status: true, due_at: true } },
         _count: { select: { products: true, customers: true, users: true } },
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
     stores: stores.map(store => {
       const volume = saleMap.get(store.id);
       const invoice = store.billing_records[0];
-      return { id: store.id, name: store.name, slug: store.slug, niche: store.niche, active: store.is_active, createdAt: store.created_at,
+      return { id: store.id, name: store.name, slug: store.slug, niche: store.niche, active: store.is_active, createdAt: store.created_at, planOverride: store.billing_plan_override ?? 'automatic', protected: store.users.length > 0,
         subscription: store.subscription ? { status: store.subscription.status === 'TRIAL' && store.subscription.trial_ends_at <= now ? 'TRIAL_ENDED' : store.subscription.status, trialEnd: store.subscription.trial_ends_at, nextBilling: store.subscription.next_billing_at } : null,
         latestInvoice: invoice ? { plan: invoice.plan_tier, amount: invoice.amount_due.toFixed(2), status: invoice.status, dueAt: invoice.due_at } : null,
         saleCount: volume?._count._all ?? 0, revenue: volume?._sum.total_amount?.toFixed(2) ?? '0.00', creditBalance: balanceMap.get(store.id)?.toFixed(2) ?? '0.00',

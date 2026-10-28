@@ -81,6 +81,7 @@ model Tenant {
   screensaver_minutes  Int      @default(0)
   is_active            Boolean  @default(true)
   plan_tier            String   @default("free")
+  billing_plan_override String?
   sales_sequence       Int      @default(0)
   created_at           DateTime @default(now())
   updated_at           DateTime @updatedAt
@@ -102,6 +103,16 @@ model Tenant {
   media_assets            MediaAsset[]
   cash_register_sessions  CashRegisterSession[]
   cash_register_movements CashRegisterMovement[]
+}
+
+model PlatformAudit {
+  id String @id @default(cuid())
+  actor_id String
+  tenant_id String
+  action String
+  details Json
+  created_at DateTime @default(now())
+  @@index([tenant_id, created_at])
 }
 
 model User {

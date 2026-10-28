@@ -382,3 +382,15 @@ Instruções e limites em docs/autenticacao-imagens-protecao-tela.md.
 - [x] Regressão final: npm test aprovado, 75/75 casos.
 - [x] Conferência conectada em 28/10/2026: remetente Montante (helogourmetdelicias@gmail.com) verificado no Brevo; bucket privado montante-images criado no Supabase com limite de 3 MB e MIME image/webp. Envio e upload pela aplicação ainda dependem das credenciais do ambiente.
 - [x] Migração aditiva 20261028000100_security_personalization aplicada com sucesso no banco principal em 28/10/2026; nenhuma exclusão de dados. Variáveis Brevo/Storage conferidas em Production pelo nome, sem revelar valores; usuário confirmou conversão da chave Supabase para Secret e redeploy da versão anterior.
+- [x] Publicação b0b306f confirmada em 28/10/2026 na Vercel montante-um2r, implantação DARgNLnjnA5dkgjFQqhQTL8PrN5d (Ready), domínio montante-um2r-seven.vercel.app. Health, login e recuperação responderam 200; media sem sessão redirecionou ao login (307).
+- [ ] Teste de envio real ao endereço autorizado: não iniciado. Endereço não possui conta ativa e revisão automática bloqueou criação de cadastro temporário em produção/armazenamento da senha sem autorização específica. Nenhuma conta de teste criada.
+
+## Administração de contas e planos — 28/10/2026
+
+- [x] Conta tecnicorikardo@gmail.com conferida pelos identificadores existentes: proprietária ativa, acesso de administração geral já habilitado. Nenhuma conta real excluída; escolhida a alternativa de gestão pelo painel.
+- [x] /admin permite definir plano automático, gratuito, Padrão e Avançado, ativar/desativar acesso e excluir loja/contas com confirmação exata do identificador.
+- [x] Permissão geral revalidada no banco dentro da transação; proteção da própria loja e lojas com administradores; auditoria persistida e protegida por RLS.
+- [x] Exclusão bloqueada para cobranças externas pendentes; remoção transacional respeita vínculos de caixa, fiado e O.S. Imagens privadas são limpas após a transação; eventual falha fica sinalizada e caminhos registrados para conferência.
+- [x] Plano gratuito não gera novas mensalidades; planos fixos respeitados nos ciclos futuros; cobranças antigas não são alteradas ou canceladas automaticamente. Dashboard segue plano definido, preservando a exceção já existente da conta Ricardo.
+- [x] Removidos lista de contas, apelido da loja e opção “Salvar esta conta neste computador” do login. Mantidos preenchimento automático e opção “Salvar login e senha no navegador”, usando o gerenciador nativo; nenhuma senha em localStorage.
+- [x] 75 testes de regressão, 38 Vitest, 40 verificações HTTP em schema temporário e quatro Playwright aprovados; build de produção e TypeScript aprovados, com avisos de lint anteriores.

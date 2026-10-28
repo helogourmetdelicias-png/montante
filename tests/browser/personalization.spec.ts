@@ -2,6 +2,25 @@ import { expect, test } from '@playwright/test';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jH9kAAAAASUVORK5CYII=', 'base64');
 
+test('admin changes plans and requires the exact store slug before deletion', async ({ page }) => {
+  const requests: { method: string; body: unknown }[] = [];
+  await page.route('**/api/admin/stores/qa-store', async route => { requests.push({ method: route.request().method(), body: route.request().postDataJSON() }); await route.fulfill({ json: { ok: true } }); });
+  await page.goto('/personalization.html?mode=admin');
+  await page.getByRole('button', { name: 'Gerenciar loja' }).click();
+  await page.getByLabel('Plano', { exact: true }).selectOption('free');
+  await page.getByRole('button', { name: 'Salvar plano' }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  expect(requests).toEqual([{ method: 'PATCH', body: { plan: 'free' } }]);
+  await page.getByRole('button', { name: 'Gerenciar loja' }).click();
+  await expect(page.getByRole('button', { name: 'Excluir definitivamente' })).toBeDisabled();
+  await page.getByLabel('Digite loja-teste para confirmar').fill('outra-loja');
+  await expect(page.getByRole('button', { name: 'Excluir definitivamente' })).toBeDisabled();
+  await page.getByLabel('Digite loja-teste para confirmar').fill('loja-teste');
+  await page.screenshot({ path: 'test-results/admin-store-management.png' });
+  await page.getByRole('button', { name: 'Excluir definitivamente' }).click();
+  expect(requests.at(-1)).toEqual({ method: 'DELETE', body: { confirmation: 'loja-teste' } });
+});
+
 test('login uses email/password, selects ambiguous stores, then requests the security code', async ({ page }) => {
   let starts = 0;
   await page.route('**/api/auth/security/start', async route => {
@@ -14,6 +33,9 @@ test('login uses email/password, selects ambiguous stores, then requests the sec
   await page.route('**/api/auth/security/verify', route => route.fulfill({ status: 400, json: { error: 'Código inválido ou expirado.' } }));
   await page.goto('/personalization.html?mode=login');
   await expect(page.getByLabel('Identificador da loja', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Salvar esta conta neste computador', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Salvar login e senha no navegador')).toBeChecked();
+  await expect(page.getByLabel('Senha', { exact: true })).toHaveAttribute('autocomplete', 'current-password');
   await expect(page.getByRole('link', { name: 'Esqueci minha senha' })).toHaveAttribute('href', '/recuperar-senha');
   await page.getByLabel('E-mail', { exact: true }).fill('owner@example.com');
   await page.getByLabel('Senha', { exact: true }).fill('Password123!');

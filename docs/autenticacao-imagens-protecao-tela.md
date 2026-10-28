@@ -41,3 +41,5 @@ Integração usa schema temporário PostgreSQL removido ao terminar. E-mail e St
 Envio real Brevo e Storage real aguardam configuração válida do ambiente; testes simulados não comprovam entrega real.
 
 Atualização de implantação: em 28/10/2026 a migração aditiva foi aplicada com sucesso no banco principal. Bucket privado criado e remetente verificado. As variáveis foram cadastradas pelo usuário na Vercel; presença conferida em Production. Homologação real e publicação do novo código ainda precisam ser confirmadas.
+
+Publicação confirmada em 28/10/2026: commit b0b306f, implantação DARgNLnjnA5dkgjFQqhQTL8PrN5d na Vercel montante-um2r, status Ready. Health, login e recuperação HTTP 200; media exige sessão. Envio real e upload autenticado ainda aguardam homologação; criação de conta temporária bloqueada pela revisão automática antes da execução.

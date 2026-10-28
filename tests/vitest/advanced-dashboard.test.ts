@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), user: vi.fn(), billing: vi.fn(), aggregate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), user: vi.fn(), billing: vi.fn(), aggregate: vi.fn(), tenant: vi.fn() }));
 vi.mock('@/auth', () => ({ auth: mocks.auth }));
-vi.mock('@/lib/prisma', () => ({ prisma: { user: { findFirst: mocks.user }, billingRecord: { findFirst: mocks.billing }, sale: { aggregate: mocks.aggregate } } }));
+vi.mock('@/lib/prisma', () => ({ prisma: { user: { findFirst: mocks.user }, tenant: { findUnique: mocks.tenant }, billingRecord: { findFirst: mocks.billing }, sale: { aggregate: mocks.aggregate } } }));
 import { canAccessAdvancedDashboard } from '@/lib/reports/dashboard-access';
 import { dashboardChange, dashboardDays, previousDashboardPeriod } from '@/lib/reports/dashboard';
 import { GET } from '@/app/api/reports/sales/route';
@@ -11,10 +11,19 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.user.mockResolvedValue({ email: 'normal@example.com' });
   mocks.billing.mockResolvedValue(null);
+  mocks.tenant.mockResolvedValue({ billing_plan_override: null });
   mocks.auth.mockResolvedValue({ user: { id: 'user-a', tenantId: 'tenant-a', role: 'owner' } });
 });
 
 describe('dashboard access', () => {
+  it('respects manually managed free and paid plans without fabricating receipts', async () => {
+    mocks.tenant.mockResolvedValue({ billing_plan_override: 'advanced' });
+    expect(await canAccessAdvancedDashboard('user-a', 'tenant-a')).toBe(true);
+    expect(mocks.billing).not.toHaveBeenCalled();
+    mocks.tenant.mockResolvedValue({ billing_plan_override: 'free' });
+    mocks.billing.mockResolvedValue({ id: 'old-paid-record' });
+    expect(await canAccessAdvancedDashboard('user-a', 'tenant-a')).toBe(false);
+  });
   it('grants only the named active management account an exception without touching billing', async () => {
     mocks.user.mockResolvedValue({ email: 'TecnicoRikardo@gmail.com' });
     expect(await canAccessAdvancedDashboard('cmvgl6kc60002o1diccbbqoh2', 'cmvgl6kc50000o1di5ees1q1e')).toBe(true);
