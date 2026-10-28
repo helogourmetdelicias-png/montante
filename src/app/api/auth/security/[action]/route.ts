@@ -35,6 +35,19 @@ export async function POST(request: Request, context: { params: Promise<{ action
       if (!user && users.length > 1 && !input.data.tenantChoice) return response({ stores: users.map(user => ({ id: user.tenant_id, name: user.tenant.name })) });
       if (!user) throw new RequestError('E-mail ou senha incorretos.', 401);
       const nextFlow = opaqueToken();
+      
+      // Se 2FA estiver desabilitado, retorna ticket direto
+      if (process.env.DISABLE_2FA === 'true') {
+        // Marca email como verificado se ainda não foi
+        if (!user.email_verified) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { email_verified: new Date() }
+          });
+        }
+        return withFlow({ ticket: await issueTicket(user, nextFlow) }, nextFlow);
+      }
+      
       if (await isTrustedDevice(user, cookieValue(request, DEVICE_COOKIE))) return withFlow({ ticket: await issueTicket(user, nextFlow) }, nextFlow);
       return withFlow({ challengeId: await issueChallenge(user, 'login', nextFlow), email: user.email, verificationRequired: true }, nextFlow);
     }

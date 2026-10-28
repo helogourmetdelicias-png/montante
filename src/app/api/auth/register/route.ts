@@ -53,6 +53,20 @@ export async function POST(request: Request) {
     });
 
     const flow = opaqueToken();
+    
+    // Se 2FA estiver desabilitado, marca email como verificado e retorna sucesso direto
+    if (process.env.DISABLE_2FA === 'true') {
+      await prisma.user.update({
+        where: { id: tenant.users[0].id },
+        data: { email_verified: new Date() }
+      });
+      return NextResponse.json({ 
+        tenantSlug: tenant.slug, 
+        verificationRequired: false,
+        message: '2FA desabilitado - conta criada com sucesso' 
+      }, { status: 201 });
+    }
+    
     try {
       const challengeId = await issueChallenge(tenant.users[0], 'login', flow);
       const result = NextResponse.json({ tenantSlug: tenant.slug, challengeId, verificationRequired: true }, { status: 201 });

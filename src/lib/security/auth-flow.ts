@@ -45,6 +45,22 @@ export async function findLoginUsers(email: string, password: string) {
 }
 
 export async function issueChallenge(user: User, purpose: 'login' | 'reset', flow: string) {
+  // Verificação temporária: se DISABLE_2FA estiver ativa, não envia código
+  if (process.env.DISABLE_2FA === 'true') {
+    console.log('[2FA] Desabilitado temporariamente - pulando envio de código');
+    const challenge = await prisma.authChallenge.create({ 
+      data: { 
+        user_id: user.id, 
+        purpose, 
+        flow_hash: secretHash(flow), 
+        credential_hash: credentialHash(user), 
+        code_hash: secretHash('000000'), // código fixo quando desabilitado
+        expires_at: new Date(Date.now() + 10 * 60000) 
+      } 
+    });
+    return challenge.id;
+  }
+  
   assertEmailConfigured();
   const code = String(randomInt(100000, 1000000));
   const challenge = await prisma.authChallenge.create({ data: { user_id: user.id, purpose, flow_hash: secretHash(flow), credential_hash: credentialHash(user), code_hash: secretHash(code), expires_at: new Date(Date.now() + 10 * 60000) } });
