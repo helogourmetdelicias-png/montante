@@ -369,19 +369,19 @@ Detalhes e dependências de cada item pendente constam no retorno acrescentado a
 
 - [x] Login por e-mail/senha com identificação segura da loja e escolha após validar credenciais quando ambíguas.
 - [x] Cadastro com verificação, código em dispositivo desconhecido, dispositivo HttpOnly e recuperação sem revelar existência da conta; limites de tentativas/reenvio e revogação após trocar senha.
-- [x] Integração transacional Brevo por API, sem segredos no código.
+- [x] Integração transacional Resend (migrado do Brevo) por API, sem segredos no código.
 - [x] Galeria/câmera com prévia em produtos, O.S., avatar, logo e proteção de tela; imagens validadas, metadados removidos e Storage privado por loja.
 - [x] Proteção de tela persistida por tenant, timer no Perfil e imagem sem distorção; primeiro clique/tecla retorna ao PDV preservando venda.
 - [x] Migração aditiva preparada; integração isolada PostgreSQL aprovada com 29 verificações HTTP e demais asserções, sem alterar registros reais.
 - [x] 37 testes Vitest, três testes visuais/funcionais Playwright, TypeScript, lint e build de produção aprovados; avisos anteriores de lint preservados.
 - [x] APK 1.1 com captura de foto compilado; lint Android e assinatura aprovados. Teste físico pendente.
-- [ ] Configurar credenciais reais de Brevo/Supabase e validar remetente; configuração local de Storage ainda contém valores inválidos.
+- [ ] Configurar credenciais reais de Resend/Supabase e validar remetente; configuração local de Storage ainda contém valores inválidos.
 - [ ] Homologar envio real e bucket privado, aplicar migração no ambiente principal e publicar. Nenhuma dessas etapas foi marcada como concluída por testes simulados.
 
 Instruções e limites em docs/autenticacao-imagens-protecao-tela.md.
 - [x] Regressão final: npm test aprovado, 75/75 casos.
-- [x] Conferência conectada em 28/10/2026: remetente Montante (helogourmetdelicias@gmail.com) verificado no Brevo; bucket privado montante-images criado no Supabase com limite de 3 MB e MIME image/webp. Envio e upload pela aplicação ainda dependem das credenciais do ambiente.
-- [x] Migração aditiva 20261028000100_security_personalization aplicada com sucesso no banco principal em 28/10/2026; nenhuma exclusão de dados. Variáveis Brevo/Storage conferidas em Production pelo nome, sem revelar valores; usuário confirmou conversão da chave Supabase para Secret e redeploy da versão anterior.
+- [x] Conferência conectada em 28/10/2026: remetente Montante (helogourmetdelicias@gmail.com) verificado no Resend (migrado do Brevo); bucket privado montante-images criado no Supabase com limite de 3 MB e MIME image/webp. Envio e upload pela aplicação ainda dependem das credenciais do ambiente.
+- [x] Migração aditiva 20261028000100_security_personalization aplicada com sucesso no banco principal em 28/10/2026; nenhuma exclusão de dados. Variáveis Resend/Storage conferidas em Production pelo nome, sem revelar valores; usuário confirmou conversão da chave Resend para Secret e redeploy da versão anterior.
 - [x] Publicação b0b306f confirmada em 28/10/2026 na Vercel montante-um2r, implantação DARgNLnjnA5dkgjFQqhQTL8PrN5d (Ready), domínio montante-um2r-seven.vercel.app. Health, login e recuperação responderam 200; media sem sessão redirecionou ao login (307).
 - [ ] Teste de envio real ao endereço autorizado: não iniciado. Endereço não possui conta ativa e revisão automática bloqueou criação de cadastro temporário em produção/armazenamento da senha sem autorização específica. Nenhuma conta de teste criada.
 

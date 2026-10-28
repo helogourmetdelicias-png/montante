@@ -37,13 +37,18 @@ Module._load = function (name, ...args) {
 };
 require.cache[require.resolve('../src/lib/prisma.ts')] = { exports: { prisma: db } };
 process.env.AUTH_SECRET = 'qa-security-secret-not-used-for-production';
-process.env.BREVO_API_KEY = 'mock-brevo-key'; process.env.AUTH_EMAIL_FROM = 'qa@example.invalid';
+process.env.RESEND_API_KEY = 'mock-resend-key'; process.env.AUTH_EMAIL_FROM = 'qa@example.invalid';
 process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'https://example.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'mock';
 const originalFetch = global.fetch;
 global.fetch = async (url, options) => {
-  assert.equal(String(url), 'https://api.brevo.com/v3/smtp/email', 'No external messages or requests');
-  const mail = JSON.parse(options.body); mails.push({ ...mail, code: mail.textContent.match(/\b(\d{6})\b/)[1] });
-  return Response.json({ messageId: 'mock' });
+  // Mock Resend API endpoint
+  if (String(url).includes('resend.com/emails')) {
+    const mail = JSON.parse(options.body);
+    const code = mail.html ? mail.html.match(/\b(\d{6})\b/)?.[1] : mail.text.match(/\b(\d{6})\b/)?.[1];
+    mails.push({ ...mail, code });
+    return Response.json({ id: 'mock-email-id' });
+  }
+  throw new Error(`Unexpected external request: ${url}`);
 };
 const cookies = (result, name) => new RegExp(`${name}=([^;]+)`).exec(result.headers.get('set-cookie') ?? '')?.[1];
 const request = (url, body, cookie = '', method = 'POST') => new Request(`https://montante.test${url}`, { method, headers: { origin: 'https://montante.test', cookie, ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: body instanceof FormData ? body : JSON.stringify(body) }) });
@@ -158,10 +163,10 @@ async function checkStatus(response, expected) { assert.equal(response.status, e
     const signupFlow = cookies(registration, security.FLOW_COOKIE);
     const signupProof = await checkStatus(await call('verify', { challengeId: registered.challengeId, code: mails.at(-1).code }, `${security.FLOW_COOKIE}=${signupFlow}`), 200);
     assert.equal((await security.consumeLoginTicket(signupProof.ticket, signupFlow)).id, signup.id);
-    const oldKey = process.env.BREVO_API_KEY; delete process.env.BREVO_API_KEY;
+    const oldKey = process.env.RESEND_API_KEY; delete process.env.RESEND_API_KEY;
     await checkStatus(await register.POST(request('/api/auth/register', { ...registerData, tenantSlug: 'must-not-be-created' })), 503);
     assert.equal(await db.tenant.count({ where: { slug: 'must-not-be-created' } }), 0);
-    process.env.BREVO_API_KEY = oldKey;
+    process.env.RESEND_API_KEY = oldKey;
     const crossOrigin = new Request('https://montante.test/api/auth/security/forgot', { method: 'POST', headers: { origin: 'https://attacker.test', 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
     await checkStatus(await loginRoute.POST(crossOrigin, { params: Promise.resolve({ action: 'forgot' }) }), 403);
     const management = require('../src/app/api/admin/stores/[id]/route.ts');

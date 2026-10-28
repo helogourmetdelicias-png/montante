@@ -6,14 +6,14 @@ Implementação local de 28/10/2026. Publicação pendente da homologação dos 
 
 Configure localmente e na Vercel, sem inserir segredos no repositório:
 
-- BREVO_API_KEY: chave da API transacional, não a senha SMTP.
-- AUTH_EMAIL_FROM: endereço de remetente validado no Brevo; conclua as verificações exigidas pela conta.
+- RESEND_API_KEY: chave da API do Resend para envio de e-mails transacionais.
+- AUTH_EMAIL_FROM: endereço de remetente validado no Resend (formato: onboarding@seudominio.com).
 - NEXT_PUBLIC_SUPABASE_URL: URL HTTPS real do projeto.
 - SUPABASE_SERVICE_ROLE_KEY: chave secreta de servidor, nunca com prefixo NEXT_PUBLIC.
 - AUTH_SECRET: segredo persistente da autenticação.
 
-O envio usa diretamente a API Brevo, pois a autenticação existente pertence à aplicação. O plano gratuito oferece 300 envios por dia, com renovação diária e sem acumular saldo. Limites ou atrasos podem impedir que códigos cheguem nos dez minutos de validade.
-Referência: https://help.brevo.com/hc/en-us/articles/208580669-FAQs-What-are-the-limits-of-the-Free-plan
+O envio usa o Resend para e-mails transacionais. O plano gratuito oferece 100 e-mails por dia e 3.000 por mês. Para produção, recomenda-se um domínio verificado no Resend. Limites ou atrasos podem impedir que códigos cheguem nos dez minutos de validade.
+Referência: https://resend.com/docs/introduction
 
 ## Preparação da publicação
 
@@ -38,8 +38,10 @@ No Perfil, configure imagem e timer. No PDV, a proteção usa imagem sem distor�
 
 Integração usa schema temporário PostgreSQL removido ao terminar. E-mail e Storage são simulados. Testes de navegador cobrem login/código, upload com prévia, layout móvel, inatividade e prevenção de clique na venda ao sair. TypeScript, lint e build aprovados; três avisos anteriores permanecem. APK 1.1 compilado, lint Android e assinatura verificados; câmera física ainda requer aparelho.
 
-Envio real Brevo e Storage real aguardam configuração válida do ambiente; testes simulados não comprovam entrega real.
+Envio real Resend e Storage real aguardam configuração válida do ambiente; testes simulados não comprovam entrega real.
 
 Atualização de implantação: em 28/10/2026 a migração aditiva foi aplicada com sucesso no banco principal. Bucket privado criado e remetente verificado. As variáveis foram cadastradas pelo usuário na Vercel; presença conferida em Production. Homologação real e publicação do novo código ainda precisam ser confirmadas.
+
+**Migração para Resend:** A integração de e-mail foi migrada do Brevo para o Resend. A variável BREVO_API_KEY deve ser substituída por RESEND_API_KEY no ambiente de produção.
 
 Publicação confirmada em 28/10/2026: commit b0b306f, implantação DARgNLnjnA5dkgjFQqhQTL8PrN5d na Vercel montante-um2r, status Ready. Health, login e recuperação HTTP 200; media exige sessão. Envio real e upload autenticado ainda aguardam homologação; criação de conta temporária bloqueada pela revisão automática antes da execução.
