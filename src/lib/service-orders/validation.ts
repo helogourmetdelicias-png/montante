@@ -17,11 +17,13 @@ const fields = {
   devicePassword: z.string().max(200).optional(),
   removePassword: z.boolean().optional(),
   laborTotal: money,
+  additionalMaterialCost: money.nullable().optional(),
   photoUrls: z.array(z.string().trim().max(2000).refine(url => { if (isMediaPath(url)) return true; try { return new URL(url).protocol === 'https:'; } catch { return false; } }, 'Use uma imagem enviada ou uma URL HTTPS.')).max(10).default([]),
   parts: z.array(z.object({
     productId: z.string().cuid(),
     quantity: z.number().finite().positive().max(9999999.999).refine(n => Math.abs(n * 1000 - Math.round(n * 1000)) < 0.000001),
     unitPrice: money.optional(),
+    unitCost: money.nullable().optional(),
   }).strict()).max(100).default([]),
 };
 export const createServiceOrderSchema = z.object(fields).strict();

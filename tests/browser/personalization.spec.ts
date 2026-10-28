@@ -10,12 +10,12 @@ test('material offers niche suggestions, accepts custom text and stays hidden fo
   await expect(page.locator('datalist option[value="Algodão"]')).toHaveCount(1);
   await field.fill('Linho artesanal');
   await expect(field).toHaveValue('Linho artesanal');
-  for (const [niche, suggestion] of [['CONSTRUCTION', 'PVC'], ['PHONE_REPAIR', 'Silicone'], ['IT_SUPPORT', 'Cobre'], ['COSMETICS', 'Vidro']]) {
+  for (const [niche, suggestion] of [['CONSTRUCTION', 'PVC'], ['COSMETICS', 'Vidro']]) {
     await page.getByLabel('Nicho').selectOption(niche);
     await expect(field).toBeVisible();
     await expect(page.locator(`datalist option[value="${suggestion}"]`)).toHaveCount(1);
   }
-  for (const niche of ['BEVERAGES', 'OTHER']) {
+  for (const niche of ['PHONE_REPAIR', 'IT_SUPPORT', 'BEVERAGES', 'OTHER']) {
     await page.getByLabel('Nicho').selectOption(niche);
     await expect(field).toHaveCount(0);
   }
@@ -131,4 +131,38 @@ test('inactivity banner consumes the first click/key without losing or submittin
   await page.keyboard.press('Enter');
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await expect(page.getByText('Vendas registradas: 1')).toBeVisible();
+});
+
+
+test('technical product saves unit cost without a composition field', async ({ page }) => {
+  let saved: any;
+  await page.route('**/api/products**', async route => {
+    if (route.request().method() === 'POST') { saved = route.request().postDataJSON(); await route.fulfill({ json: { product: { id: 'qa' } } }); }
+    else await route.fulfill({ json: { products: [], total: 0, categories: [] } });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/personalization.html?mode=product-cost');
+  await page.getByRole('button', { name: 'Novo produto' }).click();
+  await expect(page.getByLabel('Material (opcional)', { exact: true })).toHaveCount(0);
+  await page.getByLabel('Nome do produto', { exact: true }).fill('SSD 240 GB');
+  await page.getByLabel('Preço de venda (R$)', { exact: true }).fill('150,00');
+  await page.getByLabel('Custo por unidade do produto / material (R$)').fill('80,50');
+  await page.getByRole('button', { name: 'Salvar produto' }).click();
+  await expect.poll(() => saved?.costPrice).toBe(80.5);
+  expect(saved.price).toBe(150);
+});
+
+test('service separates internal materials from the customer quote', async ({ page }) => {
+  await page.route('**/api/service-orders/parts**', route => route.fulfill({ json: { products: [{ id: 'qa', name: 'SSD 240 GB', price: '150.00', costPrice: '80.50', stock: '10', fractional: false }] } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/personalization.html?mode=service-cost');
+  await page.getByRole('button', { name: 'Adicionar peça' }).click();
+  await expect(page.getByLabel('Custo unitário da peça (R$)')).toHaveValue('80,50');
+  await page.getByLabel('Materiais extras usados no serviço (R$)').fill('5,00');
+  await expect(page.getByText('Custo total das peças e materiais:')).toContainText('85,50');
+  await expect(page.getByText('Total da O.S.').locator('..')).toContainText('150,00');
+  await page.getByLabel('Custo unitário da peça (R$)').fill('');
+  await expect(page.getByText('Custo total das peças e materiais:')).toContainText('Pendente de informação');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/service-material-cost-mobile.png', fullPage: true });
 });

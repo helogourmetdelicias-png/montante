@@ -17,9 +17,10 @@ export function serializeServiceOrder(order: Order) {
     id: order.id, number: order.number, clientName: order.client_name, clientPhone: order.client_phone,
     deviceType: order.device_type, deviceBrandModel: order.device_brand_model, serialNumberImei: order.serial_number_imei ?? '',
     reportedDefect: order.reported_defect, aestheticCondition: order.aesthetic_condition, hasPassword: !!order.device_password_encrypted,
+    additionalMaterialCost: order.additional_material_cost?.toFixed(2) ?? null,
     status: order.status, version: order.version, partsTotal: order.parts_total.toFixed(2), laborTotal: order.labor_total.toFixed(2), grandTotal: order.grand_total.toFixed(2),
     photoUrls: order.photo_urls, createdAt: order.created_at.toISOString(), completedAt: order.completed_at?.toISOString() ?? null,
-    parts: order.parts.map(p => ({ productId: p.product_id, name: p.name_snapshot, quantity: p.quantity.toString(), unitPrice: p.unit_price.toFixed(2), totalPrice: p.total_price.toFixed(2) })),
+    parts: order.parts.map(p => ({ productId: p.product_id, unitCost: p.unit_cost?.toFixed(2) ?? null, name: p.name_snapshot, quantity: p.quantity.toString(), unitPrice: p.unit_price.toFixed(2), totalPrice: p.total_price.toFixed(2) })),
     sales: order.sales.map(s => ({ id: s.id, number: s.sale_number, status: s.status })),
   };
 }
@@ -45,7 +46,7 @@ export async function saveServiceOrder(tx: Prisma.TransactionClient, tenantId: s
     const quantity = new Prisma.Decimal(p.quantity);
     if (!product.sell_by_fraction && !quantity.isInteger()) throw new ServiceOrderError('Esta peça exige quantidade inteira.', 400);
     const price = p.unitPrice === undefined ? product.price : new Prisma.Decimal(p.unitPrice);
-    return { tenant_id: tenantId, product_id: product.id, name_snapshot: product.name, quantity, unit_price: price, total_price: price.mul(quantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP) };
+    return { tenant_id: tenantId, product_id: product.id, name_snapshot: product.name, unit_cost: p.unitCost === undefined ? product.cost_price : p.unitCost === null ? null : new Prisma.Decimal(p.unitCost), quantity, unit_price: price, total_price: price.mul(quantity).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP) };
   });
   const partsTotal = parts.reduce((sum, p) => sum.add(p.total_price), new Prisma.Decimal(0));
   const grandTotal = partsTotal.add(input.laborTotal);
@@ -55,7 +56,7 @@ export async function saveServiceOrder(tx: Prisma.TransactionClient, tenantId: s
     client_name: input.clientName, client_phone: input.clientPhone, device_type: input.deviceType, device_brand_model: input.deviceBrandModel,
     serial_number_imei: input.serialNumberImei || null, reported_defect: input.reportedDefect, aesthetic_condition: input.aestheticCondition,
     ...(password !== undefined ? { device_password_encrypted: password } : {}),
-    photo_urls: input.photoUrls, parts_total: partsTotal, labor_total: new Prisma.Decimal(input.laborTotal), grand_total: grandTotal,
+    photo_urls: input.photoUrls, additional_material_cost: input.additionalMaterialCost == null ? null : new Prisma.Decimal(input.additionalMaterialCost), parts_total: partsTotal, labor_total: new Prisma.Decimal(input.laborTotal), grand_total: grandTotal,
   };
   if (edit) {
     const claim = await tx.serviceOrder.updateMany({ where: { id: edit.id, tenant_id: tenantId, version: edit.version }, data: { ...data, status: edit.status, version: { increment: 1 }, ...(edit.status === 'CANCELLED' ? { device_password_encrypted: null } : {}) } });

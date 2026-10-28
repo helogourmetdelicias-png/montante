@@ -94,6 +94,10 @@ export async function GET(request: Request) {
   const productsByRevenue = mapProductRanks(productRevenueGroups);
   const productsByQuantity = mapProductRanks(productQuantityGroups);
 
+  const costSummary = await prisma.sale.aggregate({ where: { ...saleFilter, cost_total: { not: null } }, _count: { _all: true }, _sum: { total_amount: true, cost_total: true } });
+  const knownCost = costSummary._sum.cost_total ?? new Prisma.Decimal(0);
+  const coveredRevenue = costSummary._sum.total_amount ?? new Prisma.Decimal(0);
+  const costCoverage = costSummary._count._all;
   const totalRevenue = salesSummary._sum.total_amount ?? new Prisma.Decimal(0);
   const saleCount = salesSummary._count._all;
   const paymentBreakdown = paymentGroups.map((group) => ({
@@ -121,6 +125,7 @@ export async function GET(request: Request) {
       saleCount,
       averageTicket: saleCount ? totalRevenue.div(saleCount).toDecimalPlaces(2).toFixed(2) : '0.00',
     },
+    costs: { total: knownCost.toFixed(2), revenue: coveredRevenue.toFixed(2), grossProfit: coveredRevenue.minus(knownCost).toFixed(2), coveredSales: costCoverage, missingSales: saleCount - costCoverage },
     paymentBreakdown,
     topProductsByRevenue: productsByRevenue,
     topProductsByQuantity: productsByQuantity,

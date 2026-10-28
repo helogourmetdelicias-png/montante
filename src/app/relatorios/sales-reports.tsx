@@ -18,6 +18,7 @@ type Report = {
   details: Details;
   topCustomers: Array<{ customerId: string; name: string; isActive: boolean; revenue: string; saleCount: number }>;
   period: { startDate: string; endDate: string };
+  costs?: { total: string; revenue: string; grossProfit: string; coveredSales: number; missingSales: number };
   summary: { revenue: string; saleCount: number; averageTicket: string };
   paymentBreakdown: Array<{ method: string; channel: string; amount: string }>;
   topProductsByRevenue: ProductRank[];
@@ -94,6 +95,7 @@ export default function SalesReports({ advancedAccess = false }: { advancedAcces
         {message && <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><CircleAlert size={18} />{message}</div>}
         {busy && <div role="status" className="flex items-center gap-3 rounded-2xl border bg-white p-8 text-sm text-slate-500"><LoaderCircle size={20} className="animate-spin text-orange-600" />Preparando seus indicadores…</div>}
         {report && <>
+          {report.costs && <section className="rounded-2xl border border-orange-200 bg-orange-50 p-5"><h2 className="text-lg font-semibold">Custos de produtos e materiais</h2><div className="mt-4 grid gap-4 sm:grid-cols-3">{[['Custo registrado', money(report.costs.total)], ['Receita com custo informado', money(report.costs.revenue)], ['Lucro bruto apurado', report.costs.coveredSales ? money(report.costs.grossProfit) : 'Não apurado']].map(([label, value]) => <div key={label}><p className="text-sm text-slate-600">{label}</p><p className="mt-1 text-2xl font-semibold">{value}</p></div>)}</div><p className="mt-4 text-sm text-slate-600">{report.costs.coveredSales} venda(s) com custo completo · {report.costs.missingSales} sem custo completo. Considera apenas vendas concluídas, com descontos. Vendas antigas e vendas rápidas sem custo não entram no lucro apurado. Lucro bruto não desconta despesas, impostos ou comissões.</p></section>}
           {advancedView ? <AdvancedDashboard key={`${report.period.startDate}-${report.period.endDate}`} report={report} /> : <>
           <WhatsappShare text={reportShareText(report)} disabled={busy} />
           <p className="text-sm text-slate-500">Período: {new Date(`${report.period.startDate}T00:00:00`).toLocaleDateString('pt-BR')} a {new Date(`${report.period.endDate}T00:00:00`).toLocaleDateString('pt-BR')}</p>

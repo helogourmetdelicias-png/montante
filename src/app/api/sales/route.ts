@@ -1,3 +1,4 @@
+import { snapshotCost } from '@/lib/sales/costs';
 import { createHash } from 'node:crypto';
 import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
 import { auth } from '@/auth';
@@ -146,7 +147,7 @@ export async function POST(request: Request) {
       const productIds = items.map((item) => item.productId);
       const products = await tx.product.findMany({
         where: { tenant_id: tenantId, id: { in: productIds }, is_active: true },
-        select: { id: true, price: true, stock_quantity: true, sell_by_fraction: true, brand: true, category: true },
+        select: { id: true, price: true, cost_price: true, stock_quantity: true, sell_by_fraction: true, brand: true, category: true },
       });
       const productsById = new Map(products.map((product) => [product.id, product]));
       if (products.length !== items.length) throw new SaleInputError('Um ou mais produtos não existem ou estão inativos nesta loja.', 404);
@@ -198,6 +199,7 @@ export async function POST(request: Request) {
           sale_number: tenant.sales_sequence,
           status: 'pending',
           is_quick_sale: input.mode === 'quick',
+          cost_total: input.mode === 'quick' ? null : snapshotCost(items.map(item => ({ quantity: new Prisma.Decimal(item.quantityMilli).div(1000), unitCost: productsById.get(item.productId)!.cost_price }))),
           total_amount: totalAmount,
           discount_amount: discountAmount,
           idempotency_key: input.idempotencyKey,

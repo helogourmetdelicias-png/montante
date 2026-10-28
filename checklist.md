@@ -420,3 +420,13 @@ Instruções e limites em docs/autenticacao-imagens-protecao-tela.md.
 - [x] APIs de criação/edição usam a lista central de atributos por nicho, preservam características existentes e continuam isoladas por loja. Material retorna na listagem e na reabertura do editor.
 - [x] 76 testes de regressão aprovados; teste Playwright de sugestões/valor livre/ocultação aprovado. Integração PostgreSQL em schema descartável aprovada para os sete nichos, criação, edição, limpeza, compatibilidade antiga e isolamento; schema removido e produtos reais preservados.
 - [x] TypeScript, lint e build de produção aprovados; apenas os três avisos anteriores de lint. Sem alteração de vendas, preços, estoque ou produtos reais.
+- [x] Publicação concluída na Vercel montante-um2r: commit ae9a972, implantação 3HER9tWCi4CpcdKUEd3qQkQivHB4, status “Deployment has completed”. Verificação pública: health/login 200; catálogo e API de produtos exigem sessão (307).
+
+## Custos de produtos e materiais de serviços — 28/10/2026
+
+- [x] Reutilizado Product.cost_price: custo unitário opcional no cadastro/edição, com entrada monetária; vazio é desconhecido e 0 é custo zero. Composição física ocultada em Informática e Conserto de Celulares; atributos antigos preservados.
+- [x] O.S. guarda custo unitário das peças (sugestão do catálogo, ajustável) e materiais extras separados, sem duplicar peças e sem alterar o preço cobrado. Valores negativos/precisão inválida rejeitados.
+- [x] Venda congela custo total no checkout; alterações futuras no catálogo e reenvios não recalculam o histórico. O.S. usa o mesmo registro de venda, preservando pagamento e baixa única de estoque.
+- [x] Relatórios detalhados e dashboard mostram custos, receita coberta, lucro bruto após descontos e quantidade de vendas sem custo completo. Vendas antigas/rápidas sem custo são desconhecidas; canceladas e outras lojas excluídas. Lucro bruto não inclui despesas, tributos ou comissões.
+- [x] 76 testes de regressão, 41 Vitest, três testes Playwright em celular, TypeScript e build de produção aprovados; três avisos de lint preexistentes. Integração em schema temporário: produto criar/editar, venda com desconto, O.S. com extras, pagamento e reenvio sem baixa duplicada, custo histórico imutável, permissões e isolamento; schema removido.
+- [x] Migração aditiva 20261028190000_material_costs aplicada no Supabase: três colunas opcionais, sem exclusão ou preenchimento retroativo de registros reais.

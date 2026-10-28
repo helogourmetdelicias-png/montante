@@ -327,6 +327,7 @@ model Sale {
   status                   String    @default("pending")
   is_quick_sale            Boolean   @default(false)
   payment_method           String?
+  cost_total               Decimal?  @db.Decimal(24, 2)
   total_amount             Decimal   @db.Decimal(10, 2)
   amount_received          Decimal?  @db.Decimal(10, 2)
   change_amount            Decimal?  @db.Decimal(10, 2)
@@ -371,6 +372,7 @@ model ServiceOrder {
   aesthetic_condition String
   device_password_encrypted String? @db.Text
   status ServiceOrderStatus @default(PENDING_APPROVAL)
+  additional_material_cost Decimal? @db.Decimal(10, 2)
   parts_total Decimal @db.Decimal(10, 2)
   labor_total Decimal @db.Decimal(10, 2)
   grand_total Decimal @db.Decimal(10, 2)
@@ -392,6 +394,7 @@ model ServiceOrderPart {
   tenant_id String
   service_order_id String
   product_id String
+  unit_cost Decimal? @db.Decimal(10, 2)
   name_snapshot String
   quantity Decimal @db.Decimal(10, 3)
   unit_price Decimal @db.Decimal(10, 2)

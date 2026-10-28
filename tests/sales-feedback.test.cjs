@@ -50,6 +50,7 @@ test('quick-sale notes and optional customer persist, preserve idempotency and s
     tenant: { async update() { return { sales_sequence: ++sequence }; } },
   };
   const route = load('src/app/api/sales/route.ts', {
+    '@/lib/sales/costs': load('src/lib/sales/costs.ts'),
     '@/auth': { auth: async () => ({ user: { tenantId: 'tenant-a', id: 'operator-a' } }) },
     '@/lib/cash-register/business-day': { isCurrentBusinessDay: () => true },
     '@/lib/brand-commission': { brandKey: value => value },

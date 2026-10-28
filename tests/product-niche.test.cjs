@@ -36,14 +36,14 @@ test('product fields follow the niche and container price follows its checkbox',
 });
 
 test('material is optional, accepts custom text and follows relevant niches with suggestions', () => {
- for (const [niche, suggestion] of [['CLOTHING', 'Algodão'], ['CONSTRUCTION', 'PVC'], ['PHONE_REPAIR', 'Silicone'], ['IT_SUPPORT', 'Cobre'], ['COSMETICS', 'Vidro']]) {
+ for (const [niche, suggestion] of [['CLOTHING', 'Algodão'], ['CONSTRUCTION', 'PVC'], ['COSMETICS', 'Vidro']]) {
   const html = render(niche, { material: 'Material personalizado' });
   assert.ok(html.includes('Material (opcional)'));
   assert.ok(html.includes('<datalist') && html.includes(`value="${suggestion}"`));
   assert.ok(html.includes('value="Material personalizado"'));
   assert.ok(getNicheAttributeKeys(niche).includes('material'));
  }
- for (const niche of ['BEVERAGES', 'OTHER', null]) assert.ok(!render(niche).includes('Material (opcional)'));
+ for (const niche of ['PHONE_REPAIR', 'IT_SUPPORT', 'BEVERAGES', 'OTHER', null]) assert.ok(!render(niche).includes('Material (opcional)'));
  const base = { name: 'Produto QA', unitOfMeasure: 'un', sellByFraction: false, price: 10, stockQuantity: 3 };
  assert.equal(createProductSchema.parse({ ...base, attributes: { material: ' Algodão ' } }).attributes.material, 'Algodão');
  assert.ok(updateProductSchema.safeParse({ attributes: { material: null } }).success);

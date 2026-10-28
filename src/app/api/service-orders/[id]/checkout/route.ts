@@ -1,3 +1,4 @@
+import { snapshotCost } from '@/lib/sales/costs';
 import { auth } from '@/auth';
 import { randomUUID } from 'node:crypto';
 import { runSerializableTransaction } from '@/lib/database/transactions';
@@ -36,7 +37,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       const claim = await tx.serviceOrder.updateMany({ where: { id, tenant_id: tenantId, status: 'READY', version: order.version }, data: { version: { increment: 1 } } });
       if (claim.count !== 1) throw new ServiceOrderError('A O.S. foi alterada. Atualize a página.');
       const tenant = await tx.tenant.update({ where: { id: tenantId }, data: { sales_sequence: { increment: 1 } }, select: { sales_sequence: true } });
-      const sale = await tx.sale.create({ data: { tenant_id: tenantId, service_order_id: id, sale_number: tenant.sales_sequence, is_quick_sale: true, status: 'pending', total_amount: order.grand_total, discount_amount: 0, cash_register_session_id: register.id, idempotency_key: randomUUID(), request_hash: `service:${id}:${order.version}`, expires_at: new Date(now.getTime() + 15 * 60000), notes: `O.S. #${order.number} · ${order.device_type} ${order.device_brand_model} · Cliente: ${order.client_name} · Peças: R$ ${order.parts_total.toFixed(2)} · Mão de obra: R$ ${order.labor_total.toFixed(2)}` } });
+      const sale = await tx.sale.create({ data: { tenant_id: tenantId, service_order_id: id, sale_number: tenant.sales_sequence, is_quick_sale: true, status: 'pending', cost_total: snapshotCost(order.parts.map(part => ({ quantity: part.quantity, unitCost: part.unit_cost })), order.additional_material_cost), total_amount: order.grand_total, discount_amount: 0, cash_register_session_id: register.id, idempotency_key: randomUUID(), request_hash: `service:${id}:${order.version}`, expires_at: new Date(now.getTime() + 15 * 60000), notes: `O.S. #${order.number} · ${order.device_type} ${order.device_brand_model} · Cliente: ${order.client_name} · Peças: R$ ${order.parts_total.toFixed(2)} · Mão de obra: R$ ${order.labor_total.toFixed(2)}` } });
       return { saleId: sale.id, href: `/pdv?serviceSale=${sale.id}` };
     });
     return NextResponse.json(result);
