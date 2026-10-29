@@ -32,20 +32,20 @@ const request = data => new Request('https://qa.example/api/sales', { method: 'P
     const input = { idempotencyKey: randomUUID(), mode: 'quick', quickAmount: 12.34 };
     assert.equal((await salesRoute.POST(request(input))).status, 401);
     session = { user: { id: operator.id, tenantId, role: 'staff' } };
-    assert.equal((await salesRoute.POST(request(input))).status, 409, 'closed register must block quick sales');
-    const drawer = await prisma.cashRegisterSession.create({ data: { tenant_id: tenantId, user_id: operator.id, initial_amount: '0' } });
-    // A previous day's open drawer must be reconciled, never reused for a new day.
-    await prisma.cashRegisterSession.update({ where: { id: drawer.id }, data: { opened_at: new Date(Date.now() - 86400000) } });
-    assert.equal((await salesRoute.POST(request(input))).status, 409);
+    const drawer = await prisma.cashRegisterSession.create({ data: { tenant_id: tenantId, user_id: operator.id, initial_amount: '0', opened_at: new Date(Date.now() - 86400000) } });
     const registerRoute = require('../src/app/api/cash-register/session/route.ts');
-    assert.equal((await registerRoute.GET()).status, 200);
-    assert.equal((await (await registerRoute.GET()).json()).session.needsClosing, true);
+    const currentRegister = () => registerRoute.GET(new Request('https://qa.example/api/cash-register/session'));
+    assert.equal((await (await currentRegister()).json()).session, null);
+    const automatic = await salesRoute.POST(request({ ...input, idempotencyKey: randomUUID() }));
+    assert.equal(automatic.status, 201, 'manual opening and prior closing are optional');
+    const automaticSale = (await automatic.json()).sale;
+    assert.notEqual((await (await currentRegister()).json()).session.id, drawer.id);
+    await prisma.$transaction(tx => cancelSaleAndRestore(tx, tenantId, automaticSale.id));
     assert.equal((await registerRoute.POST(request({ initialAmount: 0 }))).status, 409);
     const movementRoute = require('../src/app/api/cash-register/movements/route.ts');
-    assert.equal((await movementRoute.POST(request({ type: 'supply', amount: 1, description: 'QA previous day' }))).status, 409);
+    assert.equal((await movementRoute.POST(request({ type: 'supply', amount: 1, description: 'QA current day' }))).status, 201);
     assert.equal((await registerRoute.PATCH(request({ sessionId: drawer.id, declaredAmount: 0 }))).status, 200);
-    assert.equal((await salesRoute.POST(request(input))).status, 409);
-    assert.equal((await registerRoute.POST(request({ initialAmount: 0 }))).status, 201);
+    assert.equal((await registerRoute.POST(request({ initialAmount: 0 }))).status, 409, 'today already started automatically');
     for (const patch of [{ quickAmount: 0 }, { quickAmount: 12.345 }, { items: [{ productId: product.id, quantity: 1 }] }]) {
       assert.equal((await salesRoute.POST(request({ ...input, ...patch }))).status, 400);
     }

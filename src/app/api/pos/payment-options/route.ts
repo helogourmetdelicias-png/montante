@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
+import { businessDayRange } from '@/lib/cash-register/business-day';
 import { PAYMENT_PROVIDER_CATALOG } from '@/lib/payment/provider-catalog';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
@@ -24,7 +24,7 @@ export async function GET() {
       orderBy: { name: 'asc' },
     }),
     prisma.cashRegisterSession.findFirst({
-      where: { tenant_id: tenantId, user_id: session.user.id, status: 'OPEN' },
+      where: { tenant_id: tenantId, user_id: session.user.id, status: 'OPEN', opened_at: businessDayRange() },
       select: { id: true, opened_at: true },
     }),
   ]);
@@ -54,6 +54,6 @@ export async function GET() {
   return NextResponse.json({
     options: [...methods, cashOption, { provider: 'fiado', label: 'Fiado', method: 'fiado', channel: 'in_person' }, ...(splitOption ? [splitOption] : []), ...terminalMethods],
     canSimulatePixApproval,
-    cashRegister: openRegister ? { isOpen: isCurrentBusinessDay(openRegister.opened_at), needsClosing: !isCurrentBusinessDay(openRegister.opened_at), openedAt: openRegister.opened_at } : { isOpen: false, needsClosing: false },
+    cashRegister: openRegister ? { isOpen: true, needsClosing: false, openedAt: openRegister.opened_at } : { isOpen: false, needsClosing: false },
   });
 }

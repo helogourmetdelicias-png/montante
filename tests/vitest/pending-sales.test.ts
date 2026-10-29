@@ -72,5 +72,5 @@ it('bloqueia pendentes, ignora Pix manual abandonado e mantém cobrança online 
   ]);
   const issues = await getClosingIssues({ sale: { findMany } } as never, 'tenant-a', 'register-a');
   expect(issues.map(issue => issue.id)).toEqual(['pending', 'cancelled-online']);
-  expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tenant_id: 'tenant-a', cash_register_session_id: 'register-a' }) }));
+  expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tenant_id: 'tenant-a', AND: expect.arrayContaining([expect.objectContaining({ OR: expect.arrayContaining([{ cash_register_session_id: 'register-a' }]) })]) }) }));
 });

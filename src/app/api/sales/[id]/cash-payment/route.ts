@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import { runSerializableTransaction } from '@/lib/database/transactions';
 import { prisma } from '@/lib/prisma';
 import { completeCashPayment } from '@/lib/sales/cash-payment';
+import { ensureDailyCashRegister } from '@/lib/cash-register/daily-session';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -43,13 +44,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!openRegister) return NextResponse.json({ error: 'O caixa desta venda foi fechado. Abra um novo turno antes de receber dinheiro.' }, { status: 409 });
 
   try {
-    const result = await runSerializableTransaction((tx) => completeCashPayment(tx, {
-      tenantId,
-      saleId: params.id,
-      idempotencyKey: parsed.data.idempotencyKey,
-      receivedCents,
-      appliedCents: Math.round(parsed.data.amountApplied * 100),
-    }));
+    const result = await runSerializableTransaction(async (tx) => {
+      const today = await ensureDailyCashRegister(tx, tenantId, userId);
+      return completeCashPayment(tx, {
+        tenantId,
+        cashSessionId: today.id,
+        saleId: params.id,
+        idempotencyKey: parsed.data.idempotencyKey,
+        receivedCents,
+        appliedCents: Math.round(parsed.data.amountApplied * 100),
+      });
+    });
 
     if (result.state === 'not_found') return NextResponse.json({ error: 'Venda não encontrada nesta loja.' }, { status: 404 });
     if (result.state === 'insufficient') return NextResponse.json({ error: 'O valor recebido não pode ser menor que a parcela em dinheiro.' }, { status: 400 });

@@ -424,6 +424,7 @@ model CashRegisterSession {
   sales     Sale[]
   movements CashRegisterMovement[]
   credit_payments CreditPayment[]
+  cash_receipts PaymentAttempt[]
 
   @@unique([id, tenant_id])
   @@index([tenant_id, user_id, status, opened_at])
@@ -488,6 +489,7 @@ model PaymentAttempt {
   id                      String               @id @default(cuid())
   tenant_id               String
   sale_id                 String
+  cash_session_id         String?
   gateway_config_id       String?
   terminal_id             String?
   provider                String
@@ -511,12 +513,14 @@ model PaymentAttempt {
 
   tenant         Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   sale           Sale                  @relation(fields: [sale_id, tenant_id], references: [id, tenant_id], onDelete: Cascade)
+  cash_session   CashRegisterSession?  @relation(fields: [cash_session_id, tenant_id], references: [id, tenant_id], onDelete: Restrict)
   gateway_config PaymentGatewayConfig? @relation(fields: [gateway_config_id], references: [id], onDelete: SetNull)
   terminal       PaymentTerminal?      @relation(fields: [terminal_id], references: [id], onDelete: SetNull)
 
   @@unique([tenant_id, provider, idempotency_key])
   @@unique([provider, external_order_id])
   @@index([tenant_id, sale_id, status])
+  @@index([tenant_id, cash_session_id])
   @@index([tenant_id, created_at])
 }
 

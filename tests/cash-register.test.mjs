@@ -9,7 +9,10 @@ test('cancelled manual attempts do not block closing but unresolved gateway char
     total_amount: new Prisma.Decimal('10'), payment_attempts: providers.map(provider => ({ provider })) });
   const db = { sale: { async findMany({ where }) {
     assert.equal(where.tenant_id, 'tenant-a');
-    assert.equal(where.cash_register_session_id, 'register-a');
+    assert.deepEqual(where.AND[0].OR, [
+      { cash_register_session_id: 'register-a' },
+      { payment_attempts: { some: { cash_session_id: 'register-a', status: 'APPROVED' } } },
+    ]);
     return [
       sale('1', 'cancelled', ['pix_manual']),
       sale('2', 'cancelled', ['external_terminal']),
@@ -43,7 +46,10 @@ test('drawer expected total includes float, approved cash, supply, and withdrawa
     paymentAttempt: {
       async aggregate({ where }) {
         assert.equal(where.tenant_id, 'tenant-a');
-        assert.equal(where.sale.is.cash_register_session_id, 'register-a');
+        assert.deepEqual(where.OR, [
+          { cash_session_id: 'register-a' },
+          { cash_session_id: null, sale: { is: { cash_register_session_id: 'register-a', tenant_id: 'tenant-a' } } },
+        ]);
         assert.equal(where.status, 'APPROVED');
         return { _sum: { amount: new Prisma.Decimal('30.00') } };
       },

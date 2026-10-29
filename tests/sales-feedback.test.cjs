@@ -52,7 +52,9 @@ test('quick-sale notes and optional customer persist, preserve idempotency and s
   const route = load('src/app/api/sales/route.ts', {
     '@/lib/sales/costs': load('src/lib/sales/costs.ts'),
     '@/auth': { auth: async () => ({ user: { tenantId: 'tenant-a', id: 'operator-a' } }) },
-    '@/lib/cash-register/business-day': { isCurrentBusinessDay: () => true },
+    '@/lib/cash-register/daily-session': load('src/lib/cash-register/daily-session.ts', {
+      './business-day': load('src/lib/cash-register/business-day.ts'),
+    }),
     '@/lib/brand-commission': { brandKey: value => value },
     '@/lib/database/transactions': { runSerializableTransaction: fn => fn(db) },
     '@/lib/prisma': { prisma: db },

@@ -17,6 +17,7 @@ type CompleteCashPaymentInput = {
   idempotencyKey: string;
   receivedCents: number;
   appliedCents: number;
+  cashSessionId?: string;
   now?: Date;
 };
 
@@ -110,6 +111,7 @@ export async function completeCashPayment(tx: Transaction, input: CompleteCashPa
     data: {
       tenant_id: input.tenantId,
       sale_id: sale.id,
+      cash_session_id: input.cashSessionId,
       provider: 'cash',
       method: 'CASH',
       channel: 'IN_PERSON',

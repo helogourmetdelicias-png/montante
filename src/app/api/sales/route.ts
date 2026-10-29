@@ -1,6 +1,6 @@
 import { snapshotCost } from '@/lib/sales/costs';
 import { createHash } from 'node:crypto';
-import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
+import { ensureDailyCashRegister } from '@/lib/cash-register/daily-session';
 import { auth } from '@/auth';
 import { brandKey } from '@/lib/brand-commission';
 import { runSerializableTransaction } from '@/lib/database/transactions';
@@ -132,17 +132,12 @@ export async function POST(request: Request) {
         return { sale: existing, replayed: true };
       }
 
-      // Associate every new sale with the operator's active drawer and block checkout without one.
+      // Automatically associate sales with today's independent drawer.
       if (input.customerId) {
         const customer = await tx.customer.findFirst({ where: { id: input.customerId, tenant_id: tenantId, isActive: true }, select: { id: true } });
         if (!customer) throw new SaleInputError('Cliente não encontrado ou inativo nesta loja.', 404);
       }
-      const cashRegister = await tx.cashRegisterSession.findFirst({
-        where: { tenant_id: tenantId, user_id: userId, status: 'OPEN' },
-        select: { id: true, opened_at: true },
-      });
-      if (!cashRegister) throw new SaleInputError('Abra o caixa antes de iniciar uma venda.', 409);
-      if (!isCurrentBusinessDay(cashRegister.opened_at, now)) throw new SaleInputError('Feche o caixa do dia anterior e abra o caixa de hoje antes de iniciar uma venda.', 409);
+      const cashRegister = await ensureDailyCashRegister(tx, tenantId, userId, now);
 
       const productIds = items.map((item) => item.productId);
       const products = await tx.product.findMany({

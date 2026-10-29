@@ -8,8 +8,6 @@ import { Input } from '@/components/ui/input';
 import { MoneyInput } from '@/components/ui/money-input';
 import StoreNavigation from '@/components/store-navigation';
 import BusinessDate from '@/components/business-date';
-import CashClosingModal from '@/components/cash-closing-modal';
-import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
 import ReceiptPreview from './receipt-preview';
 import PixPaymentDetails from './pix-payment-details';
 import type { SaleCustomer } from './customer-picker';
@@ -66,10 +64,6 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
   const [discountMode, setDiscountMode] = useState<'amount' | 'percent'>('amount');
   const [fullscreen, setFullscreen] = useState(false);
   const [paymentOptions, setPaymentOptions] = useState<PaymentOption[]>([]);
-  const [cashRegisterOpenedAt, setCashRegisterOpenedAt] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState(() => new Date());
-  const cashRegisterOpen = Boolean(cashRegisterOpenedAt && isCurrentBusinessDay(new Date(cashRegisterOpenedAt), currentTime));
-  const registerNeedsClosing = Boolean(cashRegisterOpenedAt && !cashRegisterOpen);
   const [canSimulatePixApproval, setCanSimulatePixApproval] = useState(false);
   const [selectedOption, setSelectedOption] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
@@ -220,7 +214,6 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
         if (!response.ok) throw new Error(errorMessage(result, 'Não foi possível carregar as formas de pagamento.'));
         setPaymentOptions((result.options as PaymentOption[]).filter(option => !initialServiceSale || option.provider !== 'fiado'));
         setCanSimulatePixApproval(result.canSimulatePixApproval === true);
-        setCashRegisterOpenedAt(result.cashRegister?.openedAt ?? null);
         if (result.options.length) {
           const preferred = result.options.find((option: PaymentOption) => option.provider === 'cash') ?? result.options[0] as PaymentOption;
           setSelectedOption(preferred.provider + preferred.method + preferred.terminalId);
@@ -228,20 +221,6 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
       })
       .catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Não foi possível carregar pagamentos.'));
   }, [initialServiceSale]);
-
-  // Refresh drawer state after returning from the register and across midnight.
-  useEffect(() => {
-    const refreshRegister = async () => {
-      setCurrentTime(new Date());
-      try {
-        const response = await fetch('/api/cash-register/session', { cache: 'no-store' });
-        if (response.ok) setCashRegisterOpenedAt((await response.json()).session?.openedAt ?? null);
-      } catch { /* The backend still validates the operation day before a sale starts. */ }
-    };
-    const timer = window.setInterval(() => void refreshRegister(), 60000);
-    window.addEventListener('focus', refreshRegister);
-    return () => { window.clearInterval(timer); window.removeEventListener('focus', refreshRegister); };
-  }, []);
 
   // Polls the provider so Pix is never treated as paid based only on QR generation.
   useEffect(() => {
@@ -342,7 +321,7 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
 
   async function startCheckout() {
     if (!saleId && insufficientStock) { setMessage('A quantidade solicitada supera o estoque. Ajuste os itens indicados no carrinho.'); return; }
-    if ((!saleId && !cashRegisterOpen) || !hasSaleValue || !selectedPayment || busy || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsGatewayCustomer && !pagarmeCustomerValid)) return;
+    if (!hasSaleValue || !selectedPayment || busy || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsGatewayCustomer && !pagarmeCustomerValid)) return;
     if (selectedPayment.provider === 'fiado' && !selectedCustomer) { setCustomerStepOpen(true); return; }
     setBusy(true);
     setMessage('');
@@ -567,7 +546,6 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
   const completed = paymentStatus === 'approved';
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
-      <div className={registerNeedsClosing ? 'px-5 pt-4' : 'hidden'}><CashClosingModal required={registerNeedsClosing} /></div>
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex min-h-24 max-w-[1600px] flex-wrap items-center justify-between gap-4 px-5 py-4 lg:px-8">
           <div className="flex min-w-0 items-center gap-4">
@@ -590,7 +568,6 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
         <section className="min-w-0 space-y-5">
           {initialServiceSale && <div className="rounded-xl border border-orange-200 bg-orange-50 p-4"><h2 className="font-semibold">Recebimento de ordem de serviço</h2><p>{initialServiceSale.notes}</p><p className="mt-2 text-sm">O orçamento está fixo. As peças serão baixadas ao confirmar o pagamento integral.</p><a className="underline" href={`/ordens-servico/${initialServiceSale.orderId}`}>Voltar à O.S.</a></div>}
           <div><h2 className="text-2xl font-semibold tracking-tight">Nova venda</h2><p className="mt-1 text-sm text-slate-500">Escolha como deseja vender. Os atalhos também funcionam pelo teclado.</p></div>
-          {!cashRegisterOpen && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{registerNeedsClosing ? 'Feche o caixa do dia anterior e abra o caixa de hoje para iniciar novas vendas.' : 'Abertura do caixa de hoje obrigatória para iniciar vendas.'} <a href="/caixa" className="font-semibold underline">{registerNeedsClosing ? 'Fechar caixa anterior' : 'Abrir caixa de hoje'}</a></div>}
           <div className="grid gap-3 sm:grid-cols-2">
             <Button ref={quickButtonRef} type="button" variant={saleMode === 'quick' ? 'default' : 'outline'} disabled={busy || Boolean(saleId)} onClick={() => openSaleDialog('quick')} className="h-auto min-h-24 flex-col gap-2 whitespace-normal rounded-2xl" aria-keyshortcuts="F1"><span className="text-lg font-semibold">F1 · Venda rápida</span><span className="text-sm font-normal">Valor livre, sem produto e com cliente opcional</span></Button>
             <Button ref={advancedButtonRef} type="button" variant={saleMode === 'advanced' ? 'default' : 'outline'} disabled={busy || Boolean(saleId)} onClick={() => openSaleDialog('advanced')} className="h-auto min-h-24 flex-col gap-2 whitespace-normal rounded-2xl" aria-keyshortcuts="F2"><span className="text-lg font-semibold">F2 · Venda avançada</span><span className="text-sm font-normal">Selecionar produtos e cliente opcional</span></Button>
@@ -628,7 +605,7 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
             {needsCustomerEmail && <label className="mt-3 block text-sm font-medium" htmlFor="customer-email">E-mail do comprador<Input id="customer-email" type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder={selectedPayment.environment === 'sandbox' ? 'comprador@testuser.com' : 'comprador@exemplo.com'} disabled={!paymentEditable} className="mt-2 h-10" required />{selectedPayment.environment === 'sandbox' && <span className="mt-1 block text-xs font-normal text-slate-500">No Sandbox, use um e-mail de teste com final @testuser.com.</span>}</label>}
             {needsGatewayCustomer && <fieldset className="mt-3 space-y-3 rounded-xl border border-slate-200 p-3"><legend className="px-1 text-sm font-medium">Dados para cobrança Pix {needsPagBankCustomer ? 'PagBank' : 'Pagar.me'}</legend><p className="text-xs text-slate-500">{needsPagBankCustomer ? 'Para gerar o Pix PagBank, informe nome, e-mail e CPF/CNPJ do comprador.' : 'Para gerar o Pix, informe nome, e-mail, CPF/CNPJ e celular com DDD. Algumas contas Pagar.me PSP também exigem endereço; deixe os dados extras fechados se não forem solicitados.'}</p><div className="grid grid-cols-2 gap-2"><Input autoComplete="name" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Nome completo" aria-label="Nome completo do comprador" className="col-span-2 h-10" /><Input type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="E-mail" aria-label="E-mail do comprador" className="h-10" /><Input value={customerDocument} onChange={(event) => setCustomerDocument(event.target.value)} placeholder="CPF/CNPJ" aria-label="CPF ou CNPJ do comprador" className="h-10" />{needsPagarmeCustomer && <Input type="tel" autoComplete="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Celular com DDD" aria-label="Celular do comprador" className="col-span-2 h-10" />}</div>{needsPagarmeCustomer && <details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-medium text-slate-700">Endereço (se exigido pela conta Pagar.me)</summary><div className="mt-3 grid grid-cols-2 gap-2"><Input autoComplete="postal-code" value={customerZipCode} onChange={(event) => setCustomerZipCode(event.target.value)} placeholder="CEP" aria-label="CEP do comprador" className="h-10" /><Input autoComplete="address-level2" value={customerCity} onChange={(event) => setCustomerCity(event.target.value)} placeholder="Cidade" aria-label="Cidade do comprador" className="h-10" /><Input autoComplete="address-line1" value={customerStreet} onChange={(event) => setCustomerStreet(event.target.value)} placeholder="Rua" aria-label="Rua do comprador" className="h-10" /><Input value={customerNumber} onChange={(event) => setCustomerNumber(event.target.value)} placeholder="Número" aria-label="Número do endereço" className="h-10" /><Input value={customerNeighborhood} onChange={(event) => setCustomerNeighborhood(event.target.value)} placeholder="Bairro" aria-label="Bairro do comprador" className="h-10" /><Input value={customerState} onChange={(event) => setCustomerState(event.target.value.toUpperCase().slice(0, 2))} placeholder="UF" aria-label="Estado do comprador" maxLength={2} className="h-10" /></div></details>}{needsPagarmeCustomer && hasOptionalAddress && !optionalAddressComplete && <p className="text-xs text-red-600">Preencha todos os campos do endereço ou deixe-os vazios.</p>}</fieldset>}
             {hasSaleValue && selectedPayment && <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm" aria-label="Resumo antes da cobrança"><p className="font-semibold">Confira antes de cobrar</p><p>{saleMode === 'quick' ? 'Venda rápida' : `${cart.length} produtos`} · {selectedCustomer?.name ?? 'Cliente não identificado'}</p>{saleNotes.trim() && <p className="break-words">{saleNotes}</p>}<p>Pagamento: <strong>{selectedPayment.label}</strong></p><p>Total: <strong>{money(amountDue)}</strong></p></div>}
-            <Button ref={paymentButtonRef} type="button" onClick={startCheckout} disabled={(!saleId && (!cashRegisterOpen || insufficientStock)) || !hasSaleValue || !selectedPayment || busy || total <= 0 || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsGatewayCustomer && !pagarmeCustomerValid)} className="mt-4 h-12 w-full rounded-xl bg-orange-600 text-base font-semibold hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={18} /> : <CreditCard className="mr-2" size={18} />}{selectedPayment?.provider === 'fiado' ? `Registrar fiado de ${money(total)}` : saleId ? 'Tentar pagamento' : `Cobrar ${money(total)}`}</Button>
+            <Button ref={paymentButtonRef} type="button" onClick={startCheckout} disabled={(!saleId && insufficientStock) || !hasSaleValue || !selectedPayment || busy || total <= 0 || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsGatewayCustomer && !pagarmeCustomerValid)} className="mt-4 h-12 w-full rounded-xl bg-orange-600 text-base font-semibold hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={18} /> : <CreditCard className="mr-2" size={18} />}{selectedPayment?.provider === 'fiado' ? `Registrar fiado de ${money(total)}` : saleId ? 'Tentar pagamento' : `Cobrar ${money(total)}`}</Button>
             {saleId && !awaitingPayment && <button type="button" onClick={() => void cancelSale()} disabled={busy} className="mt-2 w-full py-1 text-sm font-medium text-slate-500 hover:text-red-600">Cancelar venda e liberar estoque</button>}
             <p className="mt-2 text-center text-xs text-slate-500">{initialServiceSale ? 'As peças da O.S. serão baixadas após o pagamento integral.' : saleMode === 'quick' ? 'Venda rápida não movimenta o estoque.' : 'O estoque é reservado ao iniciar a cobrança.'}</p>
           </div>}
@@ -692,7 +669,6 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
             <div><h2 className="text-2xl font-semibold tracking-tight">Produtos da venda avançada</h2><p className="mt-1 text-sm text-slate-500">Pesquise ou leia o código de barras para adicionar produtos.</p></div>
             <Button type="button" variant="outline" className="hidden sm:inline-flex" onClick={() => searchRef.current?.focus()}><Barcode className="mr-2" size={17} />Leitor de código</Button>
           </div>
-          {!cashRegisterOpen && <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><span>Abra seu caixa para iniciar vendas e registrar recebimentos.</span><a href="/caixa" className="font-semibold underline">Abrir caixa</a></div>}
 
           <form onSubmit={handleSearchSubmit} className="mb-4 flex gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><Input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar produto ou escanear código de barras" className="h-12 border-0 bg-slate-50 pl-11 text-base shadow-none focus-visible:ring-orange-500" aria-label="Buscar produto ou código de barras" /></div>

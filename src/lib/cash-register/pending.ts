@@ -9,8 +9,10 @@ export async function getClosingIssues(db: Pick<Prisma.TransactionClient, 'sale'
   const sales = await db.sale.findMany({
     where: {
       tenant_id: tenantId,
-      cash_register_session_id: registerId,
-      OR: [{ status: 'pending' }, { payment_attempts: { some: { status: { in: ['CREATED', 'PENDING'] } } } }],
+      AND: [
+        { OR: [{ cash_register_session_id: registerId }, { payment_attempts: { some: { cash_session_id: registerId, status: 'APPROVED' } } }] },
+        { OR: [{ status: 'pending' }, { payment_attempts: { some: { status: { in: ['CREATED', 'PENDING'] } } } }] },
+      ],
     },
     select: {
       id: true, sale_number: true, status: true, total_amount: true,

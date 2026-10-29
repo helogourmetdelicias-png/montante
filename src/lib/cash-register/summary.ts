@@ -11,7 +11,10 @@ export async function getCashRegisterSummary(db: Database, tenantId: string, ses
         tenant_id: tenantId,
         method: 'CASH',
         status: 'APPROVED',
-        sale: { is: { cash_register_session_id: sessionId, tenant_id: tenantId } },
+        OR: [
+          { cash_session_id: sessionId },
+          { cash_session_id: null, sale: { is: { cash_register_session_id: sessionId, tenant_id: tenantId } } },
+        ],
       },
       _sum: { amount: true },
     }),

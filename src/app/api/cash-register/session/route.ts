@@ -1,6 +1,6 @@
 import { auth } from '@/auth';
 import { getClosingIssues } from '@/lib/cash-register/pending';
-import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
+import { businessDayRange, isCurrentBusinessDay } from '@/lib/cash-register/business-day';
 import { runSerializableTransaction } from '@/lib/database/transactions';
 import { getCashRegisterSummary, expectedDrawerAmount } from '@/lib/cash-register/summary';
 import { prisma } from '@/lib/prisma';
@@ -22,12 +22,19 @@ async function getIdentity() {
 }
 
 /** Returns the signed-in operator's open shift and a live drawer estimate. */
-export async function GET() {
+export async function GET(request: Request) {
   const identity = await getIdentity();
   if (!identity) return NextResponse.json({ error: 'Entre na sua conta para acessar o caixa.' }, { status: 401 });
 
+  const selectedId = new URL(request.url).searchParams.get('sessionId');
+  const previousSessions = await prisma.cashRegisterSession.findMany({
+    where: { tenant_id: identity.tenantId, user_id: identity.userId, status: 'OPEN', opened_at: { lt: businessDayRange().gte } },
+    select: { id: true, opened_at: true },
+    orderBy: { opened_at: 'desc' },
+  });
+  const previousDays = previousSessions.map(item => ({ id: item.id, openedAt: item.opened_at }));
   const register = await prisma.cashRegisterSession.findFirst({
-    where: { tenant_id: identity.tenantId, user_id: identity.userId, status: 'OPEN' },
+    where: { tenant_id: identity.tenantId, user_id: identity.userId, status: 'OPEN', ...(selectedId ? { id: selectedId } : { opened_at: businessDayRange() }) },
     include: { movements: { orderBy: { created_at: 'desc' }, take: 50 } },
   });
   if (!register) {
@@ -36,7 +43,7 @@ export async function GET() {
       orderBy: { closed_at: 'desc' },
       select: { declared_amount: true, expected_amount: true, difference_amount: true, closed_at: true },
     });
-    return NextResponse.json({ session: null, lastClosing: closedRegister ? {
+    return NextResponse.json({ session: null, previousDays, lastClosing: closedRegister ? {
       declaredAmount: closedRegister.declared_amount?.toFixed(2) ?? '0.00',
       expectedAmount: closedRegister.expected_amount?.toFixed(2) ?? '0.00',
       differenceAmount: closedRegister.difference_amount?.toFixed(2) ?? '0.00',
@@ -48,6 +55,7 @@ export async function GET() {
   const pendingIssues = await getClosingIssues(prisma, identity.tenantId, register.id);
   const expected = expectedDrawerAmount(register.initial_amount, totals);
   return NextResponse.json({
+    previousDays,
     session: {
       id: register.id,
       pendingIssues,
@@ -83,18 +91,10 @@ export async function POST(request: Request) {
   try {
     const register = await runSerializableTransaction(async (tx) => {
       const openRegister = await tx.cashRegisterSession.findFirst({
-        where: { tenant_id: identity.tenantId, user_id: identity.userId, status: 'OPEN' },
+        where: { tenant_id: identity.tenantId, user_id: identity.userId, status: 'OPEN', opened_at: businessDayRange() },
         select: { id: true, opened_at: true },
       });
-      if (openRegister) return { existing: true, id: openRegister.id, needsClosing: !isCurrentBusinessDay(openRegister.opened_at) };
-      const pendingSales = await tx.sale.count({
-        where: {
-          tenant_id: identity.tenantId,
-          cash_register_session: { is: { tenant_id: identity.tenantId, user_id: identity.userId, status: 'OPEN' } },
-          status: 'pending',
-        },
-      });
-      if (pendingSales > 0) throw new Error('CASH_REGISTER_HAS_PENDING_SALES');
+      if (openRegister) return { existing: true, id: openRegister.id };
       const created = await tx.cashRegisterSession.create({
         data: {
           tenant_id: identity.tenantId,
@@ -105,10 +105,9 @@ export async function POST(request: Request) {
       });
       return { existing: false, id: created.id };
     });
-    if (register.existing) return NextResponse.json({ error: register.needsClosing ? 'Feche o caixa do dia anterior antes de abrir o caixa de hoje.' : 'Você já tem um caixa aberto.' }, { status: 409 });
+    if (register.existing) return NextResponse.json({ error: 'O caixa de hoje já foi iniciado. Use um suprimento para adicionar dinheiro à gaveta.' }, { status: 409 });
     return NextResponse.json({ sessionId: register.id }, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === 'CASH_REGISTER_HAS_PENDING_SALES') return NextResponse.json({ error: 'Finalize ou cancele as vendas pendentes antes de reabrir o caixa.' }, { status: 409 });
     if ((error as { code?: string }).code === 'P2002') return NextResponse.json({ error: 'Já existe um caixa aberto para este operador.' }, { status: 409 });
     console.error('cash_register.open_failed', error);
     return NextResponse.json({ error: 'Não foi possível abrir o caixa.' }, { status: 500 });

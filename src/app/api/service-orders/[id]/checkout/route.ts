@@ -2,7 +2,7 @@ import { snapshotCost } from '@/lib/sales/costs';
 import { auth } from '@/auth';
 import { randomUUID } from 'node:crypto';
 import { runSerializableTransaction } from '@/lib/database/transactions';
-import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
+import { ensureDailyCashRegister } from '@/lib/cash-register/daily-session';
 import { releaseExpiredSales } from '@/lib/sales/reservations';
 import { ServiceOrderError } from '@/lib/service-orders/service';
 import { NextResponse } from 'next/server';
@@ -20,11 +20,10 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       const order = await tx.serviceOrder.findFirst({ where: { id, tenant_id: tenantId }, include: { parts: { include: { product: true } } } });
       if (!order) throw new ServiceOrderError('O.S. não encontrada.', 404);
       if (order.status !== 'READY') throw new ServiceOrderError('Marque a O.S. como pronta antes de receber.');
-      const register = await tx.cashRegisterSession.findFirst({ where: { tenant_id: tenantId, user_id: session.user.id, status: 'OPEN' } });
-      if (!register || !isCurrentBusinessDay(register.opened_at, now)) throw new ServiceOrderError('Abra o caixa de hoje antes de receber a O.S.');
-      const existing = await tx.sale.findFirst({ where: { tenant_id: tenantId, service_order_id: id, status: { not: 'cancelled' } }, include: { payment_attempts: { where: { status: { in: ['CREATED', 'PENDING', 'APPROVED'] } } } } });
+      const register = await ensureDailyCashRegister(tx, tenantId, session.user.id, now);
+      const existing = await tx.sale.findFirst({ where: { tenant_id: tenantId, service_order_id: id, status: { not: 'cancelled' } }, include: { cash_register_session: { select: { user_id: true } }, payment_attempts: { where: { status: { in: ['CREATED', 'PENDING', 'APPROVED'] } } } } });
       if (existing) {
-        if (existing.cash_register_session_id !== register.id) throw new ServiceOrderError('Esta O.S. já está em recebimento em outro caixa. Resolva a venda vinculada.');
+        if (existing.cash_register_session?.user_id !== session.user.id) throw new ServiceOrderError('Esta O.S. já está em recebimento com outro operador. Resolva a venda vinculada.');
         const approved = existing.payment_attempts.find(attempt => attempt.status === 'APPROVED' && !['cash', 'pix_manual', 'external_terminal'].includes(attempt.provider));
         if (approved) {
           const reconciled = await applyPaymentResult(tx, { tenantId, saleId: existing.id, attemptId: approved.id, provider: approved.provider, method: approved.method.toLowerCase(), result: { status: 'approved', externalId: approved.external_order_id ?? undefined } });
