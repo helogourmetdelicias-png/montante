@@ -32,7 +32,7 @@ test('product fields follow the niche and container price follows its checkbox',
  assert.ok(render('BEVERAGES', { requiresContainer: true, containerValue: 12.5 }).includes('Valor do casco'));
  assert.ok(render('CONSTRUCTION').includes('Marca / Fabricante'));
  assert.equal(render('OTHER'), ''); assert.equal(render(null), '');
- assert.deepEqual(getNicheAttributeKeys('CONSTRUCTION'), ['material']);
+ assert.deepEqual(getNicheAttributeKeys('CONSTRUCTION'), ['material', 'expiryDate', 'lot']);
 });
 
 test('material is optional, accepts custom text and follows relevant niches with suggestions', () => {

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { MoneyInput } from '@/components/ui/money-input';
 import StoreNavigation from '@/components/store-navigation';
 import BusinessDate from '@/components/business-date';
+import InventoryAlertsPanel from '@/components/inventory-alerts-panel';
 import ReceiptPreview from './receipt-preview';
 import PixPaymentDetails from './pix-payment-details';
 import type { SaleCustomer } from './customer-picker';
@@ -544,6 +545,7 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
   }
 
   const completed = paymentStatus === 'approved';
+  useEffect(() => { if (completed) window.dispatchEvent(new Event('montante:inventory-updated')); }, [completed]);
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
       <header className="border-b border-slate-200 bg-white">
@@ -572,6 +574,7 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
 
       <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_430px] lg:px-8">
         <section className="min-w-0 space-y-5">
+          {canManageBrand && <InventoryAlertsPanel />}
           {initialServiceSale && <div className="rounded-xl border border-orange-200 bg-orange-50 p-4"><h2 className="font-semibold">Recebimento de ordem de serviço</h2><p>{initialServiceSale.notes}</p><p className="mt-2 text-sm">O orçamento está fixo. As peças serão baixadas ao confirmar o pagamento integral.</p><a className="underline" href={`/ordens-servico/${initialServiceSale.orderId}`}>Voltar à O.S.</a></div>}
           <div><h2 className="text-2xl font-semibold tracking-tight">Nova venda</h2><p className="mt-1 text-sm text-slate-500">Escolha como deseja vender. Os atalhos também funcionam pelo teclado.</p></div>
           <div className="grid gap-3 sm:grid-cols-2">

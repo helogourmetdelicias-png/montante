@@ -43,7 +43,8 @@ export async function exportCatalog(request: Request, kind: CatalogKind) {
       const products = await prisma.product.findMany({ where: { tenant_id: identity.tenantId }, orderBy: [{ category: 'asc' }, { name: 'asc' }, { id: 'asc' }], take: EXPORT_MAX_ROWS + 1 });
       rows = products.map(row => ({ name: row.name, sku: row.sku, barcode: row.barcode, unitOfMeasure: row.unit_of_measure, price: row.price,
         stockQuantity: row.stock_quantity, sellByFraction: row.sell_by_fraction, category: row.category, description: row.description, brand: row.brand,
-        costPrice: row.cost_price, stockMinAlert: row.stock_min_alert, stockAisle: row.stock_aisle, stockShelf: row.stock_shelf, isActive: row.is_active }));
+        costPrice: row.cost_price, stockMinAlert: row.stock_min_alert, stockAisle: row.stock_aisle, stockShelf: row.stock_shelf, isActive: row.is_active,
+        expiryDate: (row.attributes as { expiryDate?: string } | null)?.expiryDate ?? null, lot: (row.attributes as { lot?: string } | null)?.lot ?? null }));
     }
     if (rows.length > EXPORT_MAX_ROWS) return NextResponse.json({ error: 'A exportação aceita até 10.000 cadastros. Nenhum arquivo parcial foi gerado.' }, { status: 422 });
     const tenant = kind === 'products' ? await prisma.tenant.findUnique({ where: { id: identity.tenantId! }, select: { niche: true } }) : null;
@@ -97,7 +98,7 @@ export async function importCatalog(request: Request, kind: CatalogKind) {
       return (await tx.product.createMany({ data: parsed.products.map(({ data }) => ({ tenant_id: identity.tenantId!, name: data.name, sku: data.sku, barcode: data.barcode,
         description: data.description || null, unit_of_measure: data.unitOfMeasure, sell_by_fraction: data.sellByFraction, price: data.price, cost_price: data.costPrice ?? null,
         stock_quantity: data.stockQuantity, stock_min_alert: data.stockMinAlert ?? null, stock_aisle: data.stockAisle || null, stock_shelf: data.stockShelf || null,
-        category: data.category || null, brand: data.brand || null, is_active: data.isActive })) })).count;
+        category: data.category || null, brand: data.brand || null, attributes: data.attributes ?? {}, is_active: data.isActive })) })).count;
     });
     return NextResponse.json({ imported }, { status: 201 });
   } catch (error) {

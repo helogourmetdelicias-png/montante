@@ -38,5 +38,5 @@ export function getMaterialSuggestions(niche: BusinessNiche | null): readonly st
 }
 
 export function getNicheAttributeKeys(niche: BusinessNiche | null) {
-  return niche ? NICHE_ATTRIBUTE_KEYS[niche] : [];
+  return [...new Set<keyof ProductAttributes>([...(niche ? NICHE_ATTRIBUTE_KEYS[niche] : []), 'expiryDate', 'lot'])];
 }

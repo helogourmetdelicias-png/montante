@@ -9,6 +9,21 @@ const ExcelJS = require('exceljs');
 const { createCatalogWorkbook, readCatalogWorkbook, validateXlsxArchive } = require('../src/lib/catalog-excel.ts');
 const { PRODUCT_CATEGORIES } = require('../src/lib/product-categories.ts');
 
+test('product Excel preserves expiry, lot and minimum stock, accepting Brazilian dates', async () => {
+  const buffer = await createCatalogWorkbook('products', [{ name: 'Produto com lote', unitOfMeasure: 'un', price: 10, stockQuantity: 4, stockMinAlert: 5, expiryDate: '2026-11-05', lot: '000012' }]);
+  const parsed = await readCatalogWorkbook('products', buffer);
+  assert.deepEqual(parsed.errors, []);
+  assert.equal(parsed.products[0].data.stockMinAlert, 5);
+  assert.deepEqual(parsed.products[0].data.attributes, { expiryDate: '2026-11-05', lot: '000012' });
+  const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(buffer);
+  const sheet = workbook.getWorksheet('Produtos');
+  const headers = sheet.getRow(1).values;
+  sheet.getRow(2).getCell(headers.indexOf('Validade')).value = '05/11/2026';
+  assert.deepEqual((await readCatalogWorkbook('products', Buffer.from(await workbook.xlsx.writeBuffer()))).products[0].data.attributes, parsed.products[0].data.attributes);
+  sheet.getRow(2).getCell(headers.indexOf('Validade')).value = '30/02/2026';
+  assert.equal((await readCatalogWorkbook('products', Buffer.from(await workbook.xlsx.writeBuffer()))).errors.length, 1);
+});
+
 test('Excel roundtrip preserves leading zeros, optional fields, inactive status and literal formulas', async () => {
   const buffer = await createCatalogWorkbook('customers', [{ name: '=2+2 Cliente', document: '01234567890', zipCode: '01234567', phone: '11999999999', isActive: false }]);
   const parsed = await readCatalogWorkbook('customers', buffer);

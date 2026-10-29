@@ -6,6 +6,8 @@ import { NextResponse } from 'next/server';
 import { assertImageOwnership } from '@/lib/media/storage';
 import { RequestError } from '@/lib/security/request';
 import { createProductSchema } from '@/lib/validations/product';
+import { INVENTORY_FILTERS, matchesInventoryFilter, type InventoryFilter } from '@/lib/inventory-alerts';
+import { getInventoryAlerts } from '@/lib/inventory-alerts-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -95,6 +97,10 @@ export async function GET(request: Request) {
   const limit = Number(url.searchParams.get('limit') ?? '50');
   const includeInactive = url.searchParams.get('includeInactive') === 'true';
   const category = url.searchParams.get('category');
+  const alertFilter = url.searchParams.get('alert');
+  if (alertFilter && !INVENTORY_FILTERS.includes(alertFilter as InventoryFilter)) return NextResponse.json({ error: 'Alerta inválido.' }, { status: 400 });
+  if (alertFilter && !hasManagementAccess(access.role)) return NextResponse.json({ error: 'Acesso restrito à gestão da loja.' }, { status: 403 });
+  const alertIds = alertFilter ? (await getInventoryAlerts(prisma, access.tenantId)).items.filter(item => matchesInventoryFilter(item, alertFilter as InventoryFilter)).map(item => item.id) : null;
   if (category && category.length > 80) return NextResponse.json({ error: 'Categoria inválida.' }, { status: 400 });
   if (query.length > 100 || !Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
     return NextResponse.json({ error: 'Parâmetros de pesquisa ou paginação inválidos.' }, { status: 400 });
@@ -105,6 +111,7 @@ export async function GET(request: Request) {
 
   const where: Prisma.ProductWhereInput = {
     tenant_id: access.tenantId,
+    ...(alertIds ? { id: { in: alertIds } } : {}),
     ...(category ? category === '__uncategorized' ? { AND: [{ OR: [{ category: null }, { category: '' }] }] } : { category } : {}),
     ...(includeInactive ? {} : { is_active: true }),
     ...(query ? {

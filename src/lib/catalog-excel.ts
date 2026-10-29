@@ -10,7 +10,7 @@ export const IMPORT_MAX_ROWS = 1000;
 export const IMPORT_MAX_BYTES = 2 * 1024 * 1024;
 export const EXPORT_MAX_ROWS = 10000;
 export type ImportIssue = { row: number; message: string };
-type Column = { key: string; title: string; kind?: 'number' | 'boolean'; required?: boolean };
+type Column = { key: string; title: string; kind?: 'number' | 'boolean' | 'date'; required?: boolean };
 export const catalogColumns: Record<CatalogKind, Column[]> = {
   customers: [
     { key: 'name', title: 'Nome', required: true }, { key: 'document', title: 'CPF/CNPJ' },
@@ -25,6 +25,7 @@ export const catalogColumns: Record<CatalogKind, Column[]> = {
     { key: 'category', title: 'Categoria' }, { key: 'description', title: 'Descrição' }, { key: 'brand', title: 'Marca' },
     { key: 'costPrice', title: 'Custo', kind: 'number' }, { key: 'stockMinAlert', title: 'Estoque mínimo', kind: 'number' },
     { key: 'stockAisle', title: 'Corredor' }, { key: 'stockShelf', title: 'Prateleira' }, { key: 'isActive', title: 'Ativo', kind: 'boolean' },
+    { key: 'expiryDate', title: 'Validade', kind: 'date' }, { key: 'lot', title: 'Lote' },
   ],
 };
 const sheetName = (kind: CatalogKind) => kind === 'customers' ? 'Clientes' : 'Produtos';
@@ -74,6 +75,12 @@ export function validateXlsxArchive(buffer: Buffer) {
 function readValue(cell: ExcelJS.Cell, column: Column): unknown {
   const value = cell.value;
   if (value === null || value === undefined || value === '') return undefined;
+  if (column.kind === 'date') {
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    if (typeof value !== 'string') throw new Error('Validade: use AAAA-MM-DD ou DD/MM/AAAA.');
+    const text = value.trim();
+    return /^\d{2}\/\d{2}\/\d{4}$/.test(text) ? text.split('/').reverse().join('-') : text;
+  }
   if (typeof value === 'object') throw new Error(`${column.title}: use valores simples, sem fórmulas, links ou datas.`);
   if (column.kind === 'number') {
     if (typeof value === 'number') return value;
@@ -122,7 +129,11 @@ export async function readCatalogWorkbook(kind: CatalogKind, buffer: Buffer) {
       for (const column of columns) input[column.key] = headerMap.has(column.key) ? readValue(row.getCell(headerMap.get(column.key)!), column) : undefined;
       if (Object.values(input).every(value => value === undefined)) return;
       input.isActive ??= true;
-      if (kind === 'products') { input.sellByFraction ??= false; input.stockQuantity ??= 0; }
+      if (kind === 'products') {
+        input.sellByFraction ??= false; input.stockQuantity ??= 0;
+        input.attributes = { expiryDate: input.expiryDate ?? null, lot: input.lot ?? null };
+        delete input.expiryDate; delete input.lot;
+      }
       const parsed = kind === 'customers' ? createCustomerSchema.safeParse(input) : createProductSchema.safeParse(input);
       if (!parsed.success) { errors.push({ row: rowNumber, message: parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ') }); return; }
       if (kind === 'customers') {
@@ -165,6 +176,7 @@ export async function createCatalogWorkbook(kind: CatalogKind, rows: Record<stri
   instructions.getColumn(1).width = 95;
   instructions.addRows([
     ['Importação cria novos cadastros. Não altera registros existentes.'],
+    ...(kind === 'products' ? [['Validade: AAAA-MM-DD ou DD/MM/AAAA. Informe a quantidade de cada lote em um cadastro separado quando as validades forem diferentes.']] : []),
     ['Até 1.000 linhas por importação. Corrija os erros antes de confirmar.'],
     ['CPF/CNPJ, CEP, SKU e código de barras devem ser texto para preservar zeros.'],
     ['Use valores numéricos ou decimais com vírgula. Para Ativo/Fracionado: Sim ou Não.'],

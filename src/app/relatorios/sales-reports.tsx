@@ -10,6 +10,7 @@ import StoreNavigation from '@/components/store-navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import AdvancedDashboard, { type AdvancedReport } from './advanced-dashboard';
+import InventoryAlertsPanel from '@/components/inventory-alerts-panel';
 
 type ProductRank = { productId: string; name: string; sku: string | null; unit: string; quantity: string; revenue: string };
 type Report = {
@@ -88,6 +89,7 @@ export default function SalesReports({ advancedAccess = false }: { advancedAcces
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
       <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 lg:px-8"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-700">Montante · Gestão</p><h1 className="mt-1 text-2xl font-semibold">Relatórios de vendas</h1><p className="mt-1 text-sm text-slate-500">Faturamento, pagamentos e produtos mais vendidos.</p></div><StoreNavigation activePage="reports" canManageStore /></div></header>
       <div className="mx-auto max-w-7xl space-y-5 px-5 py-6 lg:px-8">
+        <div id="estoque-validade" className="scroll-mt-5"><InventoryAlertsPanel mode="report" /></div>
         <div className="flex flex-wrap items-center gap-2" aria-label="Visão dos relatórios"><Button type="button" variant={advancedView ? 'default' : 'outline'} aria-pressed={advancedView} disabled={!advancedAccess} onClick={() => setAdvancedView(true)}>Dashboard avançado{!advancedAccess && ' · Plano pago'}</Button><Button type="button" variant={!advancedView ? 'default' : 'outline'} aria-pressed={!advancedView} onClick={() => setAdvancedView(false)}>Relatórios detalhados</Button></div>
         {!advancedAccess && <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-orange-200 bg-orange-50 p-5"><div><h2 className="font-semibold text-orange-950">Uma visão mais completa do seu negócio</h2><p className="mt-1 text-sm text-orange-900">Gráficos interativos, indicadores e comparação de períodos no dashboard exclusivo das assinaturas pagas.</p></div><Link href="/assinatura" className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white">Ver assinatura</Link></section>}
         {advancedView && <div className="flex flex-wrap items-center gap-2"><span className="mr-1 text-xs font-medium text-slate-500">Atalhos do período</span>{[{ label: 'Hoje', days: 1 }, { label: '7 dias', days: 7 }, { label: '30 dias', days: 30 }, { label: '90 dias', days: 90 }].map(preset => <Button key={preset.days} type="button" variant="outline" disabled={busy} onClick={() => { const date = new Date(`${today}T12:00:00Z`); date.setUTCDate(date.getUTCDate() - preset.days + 1); setStartDate(date.toISOString().slice(0, 10)); setEndDate(today); }}>{preset.label}</Button>)}</div>}
