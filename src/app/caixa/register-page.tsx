@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowDownToLine, ArrowUpFromLine, CircleAlert, LoaderCircle, LockKeyhole, Wallet } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, CircleAlert, LoaderCircle, LockKeyhole, Wallet, X } from 'lucide-react';
 import StoreNavigation from '@/components/store-navigation';
 import BusinessDate from '@/components/business-date';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,32 @@ export default function CashRegisterPage({ operatorName, canManageStore }: { ope
   const [previousDays, setPreviousDays] = useState<{ id: string; openedAt: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const requestId = useRef(0);
+  const openingDialog = useRef<HTMLDialogElement>(null);
+  const closingDialog = useRef<HTMLDialogElement>(null);
+  const movementSection = useRef<HTMLDivElement>(null);
+
+  function selectDay(value: string) {
+    if (value === selectedDay) return;
+    setLoading(true);
+    setRegister(null);
+    setSelectedDay(value);
+    setDeclaredAmount('');
+    setNotice('');
+  }
+
+  function showOpening() {
+    setNotice('');
+    selectDay('');
+    if (!selectedDay) void loadRegister().catch((error: unknown) => setNotice(error instanceof Error ? error.message : 'Falha ao carregar o caixa.'));
+    openingDialog.current?.showModal();
+  }
+
+  function showClosing() {
+    setNotice('');
+    setDeclaredAmount('');
+    selectDay(selectedDay || previousDays[0]?.id || '');
+    closingDialog.current?.showModal();
+  }
 
   const loadRegister = useCallback(async () => {
     const currentRequest = ++requestId.current;
@@ -98,6 +124,7 @@ export default function CashRegisterPage({ operatorName, canManageStore }: { ope
       await sendJson('/api/cash-register/session', 'POST', { initialAmount: Number(initialAmount.replace(',', '.')) });
       setCloseSummary(null);
       await loadRegister();
+      openingDialog.current?.close();
     });
   }
 
@@ -127,6 +154,7 @@ export default function CashRegisterPage({ operatorName, canManageStore }: { ope
       setRegister(null);
       setDeclaredAmount('');
       setSelectedDay('');
+      closingDialog.current?.close();
       window.dispatchEvent(new Event('montante:cash-movement'));
     });
   }
@@ -139,7 +167,13 @@ export default function CashRegisterPage({ operatorName, canManageStore }: { ope
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
       <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 lg:px-8"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-700">Montante · Operação</p><h1 className="mt-1 text-2xl font-semibold">Caixa</h1><BusinessDate /><p className="mt-1 text-sm text-slate-500">Operador: {operatorName}</p></div><StoreNavigation activePage="cash" canManageStore={canManageStore} /></div></header>
       <div className="mx-auto max-w-7xl space-y-5 px-5 py-6 lg:px-8">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Controle diário do caixa</h2><p className="mt-1 text-sm text-slate-500">Abrir e fechar o caixa é opcional. As operações são registradas automaticamente por dia, sem somar o dinheiro dos dias anteriores. O fundo de troco só entra quando você informar.</p><label className="mt-4 block text-sm font-medium">Dia para consultar<select value={selectedDay} onChange={event => { setLoading(true); setRegister(null); setSelectedDay(event.target.value); setDeclaredAmount(''); setNotice(''); }} className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3"><option value="">Hoje</option>{previousDays.map(day => <option key={day.id} value={day.id}>{new Date(day.openedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} · Conferência opcional</option>)}</select></label></section>
+        <section aria-label="Ações do caixa" className="grid gap-3 sm:grid-cols-2">
+          <Button type="button" disabled={busy || loading} onClick={showOpening} className="h-14 gap-2 bg-orange-600 text-base hover:bg-orange-700"><Wallet size={20} />Abrir caixa</Button>
+          <Button type="button" disabled={busy || loading || (!register && previousDays.length === 0)} onClick={showClosing} variant="outline" className="h-14 gap-2 border-red-200 bg-white text-base text-red-700 hover:bg-red-50"><LockKeyhole size={20} />Fechar caixa</Button>
+          <p className="text-sm text-slate-500 sm:col-span-2">Para fechar o caixa de ontem, clique em <strong>Fechar caixa</strong> e escolha a data. Abertura e fechamento continuam opcionais.</p>
+        </section>
+        {closeSummary && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">Fechamento registrado com sucesso.</p>}
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Controle diário do caixa</h2><p className="mt-1 text-sm text-slate-500">Abrir e fechar o caixa é opcional. As operações são registradas automaticamente por dia, sem somar o dinheiro dos dias anteriores. O fundo de troco só entra quando você informar.</p><label className="mt-4 block text-sm font-medium">Dia para consultar<select value={selectedDay} onChange={event => selectDay(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3"><option value="">Hoje</option>{previousDays.map(day => <option key={day.id} value={day.id}>{new Date(day.openedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} · Conferência opcional</option>)}</select></label></section>
         {notice && <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><CircleAlert size={18} />{notice}</div>}
         {!loading && !register && previousClosing && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Fechamento anterior</h2><div className="mt-3 grid gap-3 sm:grid-cols-3"><p>Esperado: <strong>{formatMoney(previousClosing.expectedAmount)}</strong></p><p>Contado: <strong>{formatMoney(previousClosing.declaredAmount)}</strong></p><p>Diferença: <strong>{formatMoney(previousClosing.differenceAmount)}</strong></p></div></section>}
         {!loading && register?.needsClosing && <div role="status" className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">Você está consultando um caixa anterior. Estes valores ficam separados do caixa de hoje. O fechamento é opcional e não impede novas vendas.</div>}
@@ -152,17 +186,32 @@ export default function CashRegisterPage({ operatorName, canManageStore }: { ope
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-4 flex items-center justify-between"><div><h2 className="font-semibold">Movimentações do turno</h2><p className="text-sm text-slate-500">Abertura em {new Date(register.openedAt).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p></div><Wallet className="text-orange-600" /></div>
               {register.movements.length ? <ul className="divide-y divide-slate-100">{register.movements.map((movement) => <li key={movement.id} className="flex items-center justify-between gap-3 py-3"><span className="flex items-center gap-3">{movement.type === 'supply' ? <ArrowDownToLine className="text-emerald-600" size={18} /> : <ArrowUpFromLine className="text-orange-600" size={18} />}<span><strong className="block text-sm">{movement.description}</strong><span className="text-xs text-slate-500">{movement.type === 'supply' ? 'Suprimento' : 'Sangria'} · {new Date(movement.createdAt).toLocaleTimeString('pt-BR')}</span></span></span><strong className="tabular-nums">{formatMoney(movement.amount)}</strong></li>)}</ul> : <p className="rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-500">Nenhuma movimentação registrada neste turno.</p>}
             </section>
-            <section className="space-y-5">
+            <section className="space-y-5" ref={movementSection}>
               {!register.needsClosing && movementForm}
-              <form onSubmit={closeRegister} className="space-y-3 rounded-2xl border border-red-100 bg-white p-5 shadow-sm"><h2 className="flex items-center gap-2 font-semibold"><LockKeyhole size={18} />Fechar caixa</h2><p className="text-sm text-slate-500">Conte todo o dinheiro físico da gaveta. O sistema compara com o valor esperado.</p><MoneyInput required value={declaredAmount} onValueChange={setDeclaredAmount} placeholder="Valor contado em R$" /><Button type="submit" disabled={busy} variant="outline" className="w-full border-red-200 text-red-700 hover:bg-red-50">{busy ? <LoaderCircle className="mr-2 animate-spin" size={16} /> : null}Fechar turno</Button></form>
             </section>
           </div>
         </> : <>
           {movementForm}
           {closeSummary && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Resumo do último fechamento</h2><div className="mt-3 grid gap-3 sm:grid-cols-3"><p>Esperado: <strong>{formatMoney(closeSummary.expectedAmount)}</strong></p><p>Contado: <strong>{formatMoney(closeSummary.declaredAmount)}</strong></p><p>Diferença: <strong className={Number(closeSummary.differenceAmount) < 0 ? 'text-red-700' : 'text-emerald-700'}>{formatMoney(closeSummary.differenceAmount)}</strong></p></div></section>}
-          <form onSubmit={openRegister} className="mx-auto max-w-xl space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-50 text-orange-700"><Wallet /></div><div><h2 className="text-xl font-semibold">Fundo de troco opcional</h2><p className="mt-1 text-sm text-slate-500">Você já pode vender sem abrir o caixa. Se desejar, informe o dinheiro de troco colocado na gaveta hoje.</p></div><label className="block text-sm font-medium">Fundo de troco inicial<MoneyInput required value={initialAmount} onValueChange={setInitialAmount} className="mt-2 h-12 text-right text-lg tabular-nums" /></label><Button type="submit" disabled={busy} className="h-12 w-full bg-orange-600 hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={16} /> : null}Registrar fundo de troco</Button></form>
         </>}
       </div>
+      <dialog ref={openingDialog} aria-labelledby="opening-title" onCancel={event => { if (busy) event.preventDefault(); }} className="m-auto max-h-[90dvh] w-[min(95vw,520px)] overflow-y-auto rounded-2xl border bg-white p-6 text-slate-900 shadow-2xl backdrop:bg-slate-950/60">
+        <header className="flex items-center justify-between gap-3"><h2 id="opening-title" className="text-xl font-semibold">Abrir caixa de hoje</h2><button type="button" disabled={busy} aria-label="Fechar janela de abertura" onClick={() => openingDialog.current?.close()} className="rounded-lg p-2 hover:bg-slate-100"><X size={20} /></button></header>
+        {notice && <p role="alert" className="mt-4 text-sm text-red-700">{notice}</p>}
+        {loading ? <p role="status" className="mt-4 text-sm">Consultando o caixa de hoje…</p> : register ? <div className="mt-4 space-y-4"><p>O caixa de hoje já está aberto. Você pode continuar vendendo normalmente.</p><p className="text-sm text-slate-500">Para colocar mais dinheiro de troco na gaveta, registre um suprimento no caixa de hoje.</p><Button type="button" onClick={() => { openingDialog.current?.close(); movementSection.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} className="w-full">Ir para suprimento</Button></div> : <form onSubmit={openRegister} className="mt-4 space-y-4"><p className="text-sm text-slate-500">Informe apenas o dinheiro de troco colocado na gaveta hoje. O saldo dos dias anteriores não será incluído. Você também pode vender sem fazer esta abertura manual.</p><label className="block text-sm font-medium">Fundo de troco inicial<MoneyInput required disabled={busy} value={initialAmount} onValueChange={setInitialAmount} className="mt-2 h-12 text-lg tabular-nums" /></label><Button type="submit" disabled={busy} className="h-12 w-full bg-orange-600 hover:bg-orange-700">{busy && <LoaderCircle size={18} className="mr-2 animate-spin" />}Confirmar abertura</Button></form>}
+      </dialog>
+      <dialog ref={closingDialog} aria-labelledby="closing-title" onCancel={event => { if (busy) event.preventDefault(); }} className="m-auto max-h-[90dvh] w-[min(95vw,560px)] overflow-y-auto rounded-2xl border bg-white p-6 text-slate-900 shadow-2xl backdrop:bg-slate-950/60">
+        <header className="flex items-center justify-between gap-3"><h2 id="closing-title" className="text-xl font-semibold">Fechar caixa</h2><button type="button" disabled={busy} aria-label="Fechar janela de fechamento" onClick={() => closingDialog.current?.close()} className="rounded-lg p-2 hover:bg-slate-100"><X size={20} /></button></header>
+        <label className="mt-4 block text-sm font-medium">Caixa a fechar<select disabled={busy} value={selectedDay} onChange={event => selectDay(event.target.value)} className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-white px-3"><option value="">Hoje</option>{previousDays.map(day => <option key={day.id} value={day.id}>{new Date(day.openedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} · Caixa anterior</option>)}</select></label>
+        {notice && <p role="alert" className="mt-4 text-sm text-red-700">{notice}</p>}
+        {loading ? <p role="status" className="mt-4 text-sm">Consultando o caixa selecionado…</p> : register ? <form onSubmit={closeRegister} className="mt-5 space-y-4">
+          <div className="rounded-xl bg-orange-50 p-4"><p className="text-sm font-medium text-orange-900">Caixa de {new Date(register.openedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</p><p className="mt-2 text-sm text-slate-600">Valor esperado deste caixa</p><p className="mt-1 text-3xl font-semibold tabular-nums">{formatMoney(register.expectedAmount)}</p></div>
+          {!!register.pendingIssues?.length && <div role="alert" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900"><p className="font-semibold">Resolva as pendências deste caixa antes de fechar.</p><ul className="mt-2 space-y-2">{register.pendingIssues.map(issue => <li key={issue.id}><Link href={`/vendas/${issue.id}`} className="font-medium underline">Resolver venda #{issue.number}</Link></li>)}</ul></div>}
+          <p className="text-sm text-slate-500">{register.needsClosing ? 'Informe o dinheiro contado no encerramento desse dia. Não inclua o movimento de hoje.' : 'Conte o dinheiro da gaveta referente a este caixa. O sistema compara com o valor esperado.'}</p>
+          <label className="block text-sm font-medium">Valor contado em R$<MoneyInput required disabled={busy} value={declaredAmount} onValueChange={setDeclaredAmount} className="mt-2 h-12 text-lg tabular-nums" /></label>
+          <Button type="submit" disabled={busy || !declaredAmount || !!register.pendingIssues?.length} className="h-12 w-full bg-red-700 hover:bg-red-800">{busy && <LoaderCircle size={18} className="mr-2 animate-spin" />}Confirmar fechamento</Button>
+        </form> : <p role="status" className="mt-4 text-sm text-slate-600">Não há caixa aberto para esta data. Escolha um dia anterior para conferir.</p>}
+      </dialog>
     </main>
   );
 }
