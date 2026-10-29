@@ -27,7 +27,7 @@ const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL
 const formatMoney = (value: string | number) => money.format(Number(value));
 
 /** Cashiering workflow keeps open, movement and close actions visible in one screen. */
-export default function CashRegisterPage({ operatorName, canManageStore }: { operatorName: string; canManageStore: boolean }) {
+export default function CashRegisterPage({ operatorName, canManageStore, initialAction }: { operatorName: string; canManageStore: boolean; initialAction?: 'open' | 'close' }) {
   const [register, setRegister] = useState<Register | null>(null);
   const [initialAmount, setInitialAmount] = useState('0.00');
   const [declaredAmount, setDeclaredAmount] = useState('');
@@ -45,6 +45,7 @@ export default function CashRegisterPage({ operatorName, canManageStore }: { ope
   const openingDialog = useRef<HTMLDialogElement>(null);
   const closingDialog = useRef<HTMLDialogElement>(null);
   const movementSection = useRef<HTMLDivElement>(null);
+  const initialActionHandled = useRef(false);
 
   function selectDay(value: string) {
     if (value === selectedDay) return;
@@ -93,6 +94,23 @@ export default function CashRegisterPage({ operatorName, canManageStore }: { ope
     window.addEventListener('montante:cash-movement', refresh);
     return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('montante:cash-movement', refresh); };
   }, [loadRegister]);
+
+  // These windows open only after an explicit action, including a PDV shortcut.
+  useEffect(() => {
+    if (loading || !initialAction || initialActionHandled.current) return;
+    initialActionHandled.current = true;
+    if (initialAction === 'close') {
+      const previousId = previousDays[0]?.id;
+      if (previousId && previousId !== selectedDay) {
+        setLoading(true);
+        setRegister(null);
+        setSelectedDay(previousId);
+      }
+      closingDialog.current?.showModal();
+    } else {
+      openingDialog.current?.showModal();
+    }
+  }, [initialAction, loading, previousDays, selectedDay]);
 
   async function sendJson(url: string, method: string, body: unknown) {
     const response = await fetch(url, {

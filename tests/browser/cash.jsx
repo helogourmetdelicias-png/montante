@@ -6,4 +6,4 @@ import '../../src/app/globals.css';
 const pdv = new URLSearchParams(location.search).get('mode') === 'pdv';
 createRoot(document.getElementById('root')).render(pdv
   ? <PointOfSale storeName="Loja de teste" operatorName="Operador" canManageBrand={false} />
-  : <CashRegisterPage operatorName="Operador" canManageStore={false} />);
+  : <CashRegisterPage initialAction={new URLSearchParams(location.search).get('action')} operatorName="Operador" canManageStore={false} />);

@@ -564,6 +564,12 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
         </div>
       </header>
 
+      <div aria-label="Ações do caixa" className="mx-auto grid max-w-[1600px] grid-cols-2 gap-3 px-4 pt-5 lg:px-8">
+        <Button type="button" disabled={busy || Boolean(saleId) || hasSaleValue} onClick={() => window.location.assign('/caixa?action=open')} className="h-12 bg-orange-600 text-base hover:bg-orange-700">Abrir caixa</Button>
+        <Button type="button" disabled={busy || Boolean(saleId) || hasSaleValue} onClick={() => window.location.assign('/caixa?action=close')} variant="outline" className="h-12 border-red-200 bg-white text-base text-red-700 hover:bg-red-50">Fechar caixa</Button>
+        {(busy || Boolean(saleId) || hasSaleValue) && <p className="col-span-2 text-sm text-slate-500">Conclua ou limpe a venda em andamento para acessar o caixa.</p>}
+      </div>
+
       <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_430px] lg:px-8">
         <section className="min-w-0 space-y-5">
           {initialServiceSale && <div className="rounded-xl border border-orange-200 bg-orange-50 p-4"><h2 className="font-semibold">Recebimento de ordem de serviço</h2><p>{initialServiceSale.notes}</p><p className="mt-2 text-sm">O orçamento está fixo. As peças serão baixadas ao confirmar o pagamento integral.</p><a className="underline" href={`/ordens-servico/${initialServiceSale.orderId}`}>Voltar à O.S.</a></div>}

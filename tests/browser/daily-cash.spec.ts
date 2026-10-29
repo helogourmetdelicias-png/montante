@@ -95,3 +95,36 @@ test('PDV can initiate checkout without manually opening or closing yesterday', 
   await charge.click();
   await expect.poll(() => initiated).toBe(true);
 });
+
+for (const action of ['open', 'close']) {
+  test(`PDV top shortcut opens the ${action} window directly`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const writes: string[] = [];
+    await page.route('**/api/pos/payment-options', route => route.fulfill({ json: { options: [{ provider: 'cash', label: 'Dinheiro', method: 'cash', channel: 'in_person' }] } }));
+    await page.route('**/api/settings/personalization', route => route.fulfill({ json: { name: 'Loja de teste' } }));
+    await page.route('**/api/cash-register/session**', route => {
+      if (route.request().method() !== 'GET') writes.push(route.request().method());
+      return route.fulfill({ json: {
+        previousDays: [{ id: 'old', openedAt: '2026-10-28T12:00:00Z' }],
+        session: route.request().url().includes('sessionId=old') ? { id: 'old', initialAmount: '0.00', expectedAmount: '150.00', openedAt: '2026-10-28T12:00:00Z', needsClosing: true, pendingIssues: [], movements: [], totals: { cashSales: '150.00', cashCreditReceipts: '0.00', supplies: '0.00', withdrawals: '0.00' } } : null,
+      } });
+    });
+    await page.route(`**/caixa?action=${action}`, route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><script>window.process={env:{NODE_ENV:"development"}};</script><div id="root"></div><script type="module" src="/cash.jsx"></script></body></html>' }));
+    await page.goto('/cash.html?mode=pdv', { waitUntil: 'domcontentloaded' });
+    const shortcut = page.getByRole('button', { name: action === 'open' ? 'Abrir caixa' : 'Fechar caixa', exact: true });
+    await expect(shortcut).toBeInViewport();
+    await expect(page.locator('dialog[open]')).toHaveCount(0);
+    if (action === 'close') await page.screenshot({ path: 'output/pdv-cash-buttons-mobile.png', fullPage: true });
+    await shortcut.click();
+    await expect(page).toHaveURL(new RegExp(`/caixa\\?action=${action}$`));
+    const modal = page.getByRole('dialog', { name: action === 'open' ? 'Abrir caixa de hoje' : 'Fechar caixa', exact: true });
+    await expect(modal).toBeVisible();
+    if (action === 'close') {
+      await expect(modal.getByLabel('Caixa a fechar')).toHaveValue('old');
+      await expect(modal.getByText('R$ 150,00', { exact: true })).toBeVisible();
+    } else {
+      await expect(modal.getByLabel('Fundo de troco inicial')).toBeVisible();
+    }
+    expect(writes).toEqual([]);
+  });
+}
