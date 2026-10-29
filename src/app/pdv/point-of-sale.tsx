@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { MoneyInput } from '@/components/ui/money-input';
 import StoreNavigation from '@/components/store-navigation';
 import BusinessDate from '@/components/business-date';
+import CashClosingModal from '@/components/cash-closing-modal';
 import { isCurrentBusinessDay } from '@/lib/cash-register/business-day';
 import ReceiptPreview from './receipt-preview';
 import PixPaymentDetails from './pix-payment-details';
@@ -566,6 +567,7 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
   const completed = paymentStatus === 'approved';
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
+      <div className={registerNeedsClosing ? 'px-5 pt-4' : 'hidden'}><CashClosingModal required={registerNeedsClosing} /></div>
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex min-h-24 max-w-[1600px] flex-wrap items-center justify-between gap-4 px-5 py-4 lg:px-8">
           <div className="flex min-w-0 items-center gap-4">

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowDownToLine, ArrowUpFromLine, CircleAlert, LoaderCircle, LockKeyhole, Wallet } from 'lucide-react';
 import StoreNavigation from '@/components/store-navigation';
 import BusinessDate from '@/components/business-date';
+import CashClosingModal from '@/components/cash-closing-modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MoneyInput } from '@/components/ui/money-input';
@@ -121,6 +122,7 @@ export default function CashRegisterPage({ operatorName, canManageStore }: { ope
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
       <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 lg:px-8"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-700">Montante · Operação</p><h1 className="mt-1 text-2xl font-semibold">Caixa</h1><BusinessDate /><p className="mt-1 text-sm text-slate-500">Operador: {operatorName}</p></div><StoreNavigation activePage="cash" canManageStore={canManageStore} /></div></header>
       <div className="mx-auto max-w-7xl space-y-5 px-5 py-6 lg:px-8">
+        <CashClosingModal required={Boolean(register?.needsClosing)} />
         {notice && <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><CircleAlert size={18} />{notice}</div>}
         {!register && previousClosing && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Fechamento anterior</h2><div className="mt-3 grid gap-3 sm:grid-cols-3"><p>Esperado: <strong>{formatMoney(previousClosing.expectedAmount)}</strong></p><p>Contado: <strong>{formatMoney(previousClosing.declaredAmount)}</strong></p><p>Diferença: <strong>{formatMoney(previousClosing.differenceAmount)}</strong></p></div></section>}
         {register?.needsClosing && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Este caixa pertence a um dia anterior. Finalize ou cancele as vendas pendentes, confira o dinheiro e feche o turno antes de abrir o caixa de hoje.</div>}
