@@ -1,6 +1,6 @@
 # Alertas de estoque e validade
 
-Disponíveis para responsáveis e administradores no topo do PDV, no catálogo e em Relatórios. São avisos dentro do sistema, sem janelas automáticas nem envio de mensagens externas. O quadro atualiza ao carregar, ao voltar à tela, a cada minuto e após uma venda concluída ou edição/importação no catálogo.
+Disponíveis para responsáveis e administradores no sino **Alertas** do cabeçalho do PDV, no catálogo e em Relatórios. No PDV, o sino mostra o contador e abre os detalhes somente ao clicar; as listas e o relatório abrem em outra aba, preservando a venda. São avisos dentro do sistema, sem janelas automáticas nem envio de mensagens externas. A consulta atualiza ao carregar, ao voltar à tela, a cada minuto e após uma venda concluída ou edição/importação no catálogo.
 
 - Sem estoque: quantidade menor ou igual a zero.
 - Estoque baixo: quantidade positiva estritamente abaixo do mínimo informado no cadastro. Mínimo vazio desativa apenas este aviso; o aviso de estoque zerado permanece.

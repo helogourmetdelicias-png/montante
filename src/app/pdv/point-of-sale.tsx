@@ -9,6 +9,7 @@ import { MoneyInput } from '@/components/ui/money-input';
 import StoreNavigation from '@/components/store-navigation';
 import BusinessDate from '@/components/business-date';
 import InventoryAlertsPanel from '@/components/inventory-alerts-panel';
+import PdvCashMenu from '@/components/pdv-cash-menu';
 import ReceiptPreview from './receipt-preview';
 import PixPaymentDetails from './pix-payment-details';
 import type { SaleCustomer } from './customer-picker';
@@ -53,6 +54,7 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
   const advancedButtonRef = useRef<HTMLButtonElement>(null);
   const paymentButtonRef = useRef<HTMLButtonElement>(null);
   const [saleMode, setSaleMode] = useState<'quick' | 'advanced'>('quick');
+  const [saleDialogOpen, setSaleDialogOpen] = useState(false);
   const [quickAmount, setQuickAmount] = useState(initialServiceSale?.total ?? '');
   const [quickEntryMode, setQuickEntryMode] = useState<'decimal' | 'cents'>('decimal');
   const [saleNotes, setSaleNotes] = useState(initialServiceSale?.notes ?? '');
@@ -165,6 +167,7 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
       selectCustomer(null);
     }
     setSaleMode(mode);
+    setSaleDialogOpen(true);
     if (!saleDialog.current?.open) saleDialog.current?.showModal();
     requestAnimationFrame(() => (mode === 'quick' ? quickAmountRef : searchRef).current?.focus());
   }
@@ -544,59 +547,80 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
     (saleMode === 'quick' ? quickButtonRef : advancedButtonRef).current?.focus();
   }
 
+  const catalogPanel = (
+    <section className="min-w-0">
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <div><h2 className="text-2xl font-semibold tracking-tight">Buscar produtos</h2><p className="mt-1 text-sm text-slate-500">Pesquise ou leia o código de barras para adicionar produtos.</p></div>
+            <Button type="button" variant="outline" className="hidden sm:inline-flex" onClick={() => searchRef.current?.focus()}><Barcode className="mr-2" size={17} />Leitor de código</Button>
+          </div>
+
+          <form onSubmit={handleSearchSubmit} className="mb-4 flex gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><Input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar produto ou escanear código de barras" className="h-12 border-0 bg-slate-50 pl-11 text-base shadow-none focus-visible:ring-orange-500" aria-label="Buscar produto ou código de barras" /></div>
+            <Button type="submit" className="h-12 rounded-xl bg-orange-600 px-5 hover:bg-orange-700"><Search size={18} /><span className="ml-2 hidden sm:inline">Buscar</span></Button>
+          </form>
+
+          <label className="mb-4 block text-sm">Categoria<select value={category} onChange={event => setCategory(event.target.value)} className="ml-2 h-10 rounded-lg border bg-white px-3"><option value="">Todas as categorias</option>{categories.map(name => <option key={name} value={name}>{name}</option>)}<option value="__uncategorized">Sem categoria</option></select></label>
+          <div className="mb-3 flex items-center justify-between px-1"><h3 className="font-semibold">Produtos</h3><span className="text-sm text-slate-500">{loadingProducts ? 'Buscando…' : `${products.length} encontrados`}</span></div>
+          {products.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {products.map((product) => {
+              const stock = Number(product.stockQuantity);
+              return <button key={product.id} type="button" onClick={() => addProduct(product)} disabled={stock <= 0 || Boolean(saleId)} className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
+                <div className="mb-5 flex items-start justify-between gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-700"><PackageSearch size={21} /></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${stock > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{stock > 0 ? `${product.stockQuantity} ${product.unitOfMeasure} em estoque` : 'Sem estoque'}</span></div>
+                <h4 className="line-clamp-2 min-h-12 font-semibold leading-6">{product.name}</h4>
+                <p className="mt-1 truncate text-xs text-slate-500">{product.sku ? `SKU ${product.sku}` : 'Sem SKU'}{product.stockAisle ? ` · Corredor ${product.stockAisle}` : ''}{product.stockShelf ? ` · Prateleira ${product.stockShelf}` : ''}</p>
+                <div className="mt-4 flex items-end justify-between"><p className="text-lg font-semibold tabular-nums">{money(Number(product.price))}<span className="ml-1 text-xs font-normal text-slate-500">/ {product.unitOfMeasure}</span></p><span className="flex h-8 items-center justify-center gap-1 rounded-lg bg-orange-50 px-2 text-sm font-medium text-orange-700 transition group-hover:bg-orange-600 group-hover:text-white"><Plus size={18} />Adicionar</span></div>
+              </button>;
+            })}
+          </div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center"><div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500"><PackageSearch size={23} /></div><p className="font-medium">{loadingProducts ? 'Carregando catálogo…' : 'Nenhum produto encontrado'}</p><p className="mt-1 text-sm text-slate-500">Tente buscar por outro nome, SKU ou código de barras.</p></div>}
+        </section>
+  );
+
   const completed = paymentStatus === 'approved';
   useEffect(() => { if (completed) window.dispatchEvent(new Event('montante:inventory-updated')); }, [completed]);
   return (
     <main className="min-h-screen bg-[#f4f6f8] text-slate-900">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex min-h-24 max-w-[1600px] flex-wrap items-center justify-between gap-4 px-5 py-4 lg:px-8">
-          <div className="flex min-w-0 items-center gap-4">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-6">
+          <div className="flex min-w-0 items-center gap-3">
             <StoreBrand name={storeName} logoUrl={logoUrl} showName={false} />
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-700">Montante · Ponto de venda</p>
-              <h1 className="truncate text-xl font-semibold tracking-tight">{storeName}</h1>
-              <p className="text-sm text-slate-500">Operador: {operatorName}</p><BusinessDate />
+              <h1 className="truncate text-lg font-semibold tracking-tight">{storeName}</h1>
+              <div className="flex flex-wrap items-center gap-x-3 text-xs text-slate-500"><span>Operador: {operatorName}</span><span className="hidden xl:inline"><BusinessDate /></span></div>
             </div>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-3">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             <StoreNavigation activePage="pdv" canManageStore={canManageBrand} />
-            <Button type="button" variant="outline" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen}>{fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</Button>
-            <div className="rounded-full bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500" />Sessão ativa</div>
+            <PdvCashMenu disabled={busy || Boolean(saleId) || hasSaleValue} />
+            {canManageBrand && <InventoryAlertsPanel mode="notification" />}
+            <Button type="button" variant="outline" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} className="ml-auto hidden lg:inline-flex">{fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</Button>
           </div>
         </div>
       </header>
 
-      <div aria-label="Ações do caixa" className="mx-auto grid max-w-[1600px] grid-cols-2 gap-3 px-4 pt-5 lg:px-8">
-        <Button type="button" disabled={busy || Boolean(saleId) || hasSaleValue} onClick={() => window.location.assign('/caixa?action=open')} className="h-12 bg-orange-600 text-base hover:bg-orange-700">Abrir caixa</Button>
-        <Button type="button" disabled={busy || Boolean(saleId) || hasSaleValue} onClick={() => window.location.assign('/caixa?action=close')} variant="outline" className="h-12 border-red-200 bg-white text-base text-red-700 hover:bg-red-50">Fechar caixa</Button>
-        {(busy || Boolean(saleId) || hasSaleValue) && <p className="col-span-2 text-sm text-slate-500">Conclua ou limpe a venda em andamento para acessar o caixa.</p>}
-      </div>
-
-      <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_430px] lg:px-8">
-        <section className="min-w-0 space-y-5">
-          {canManageBrand && <InventoryAlertsPanel />}
+      <div className="mx-auto grid max-w-[1600px] gap-4 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:px-6">
+        <section aria-label="Preparar venda" className="min-w-0 space-y-4">
           {initialServiceSale && <div className="rounded-xl border border-orange-200 bg-orange-50 p-4"><h2 className="font-semibold">Recebimento de ordem de serviço</h2><p>{initialServiceSale.notes}</p><p className="mt-2 text-sm">O orçamento está fixo. As peças serão baixadas ao confirmar o pagamento integral.</p><a className="underline" href={`/ordens-servico/${initialServiceSale.orderId}`}>Voltar à O.S.</a></div>}
-          <div><h2 className="text-2xl font-semibold tracking-tight">Nova venda</h2><p className="mt-1 text-sm text-slate-500">Escolha como deseja vender. Os atalhos também funcionam pelo teclado.</p></div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Button ref={quickButtonRef} type="button" variant={saleMode === 'quick' ? 'default' : 'outline'} disabled={busy || Boolean(saleId)} onClick={() => openSaleDialog('quick')} className="h-auto min-h-24 flex-col gap-2 whitespace-normal rounded-2xl" aria-keyshortcuts="F1"><span className="text-lg font-semibold">F1 · Venda rápida</span><span className="text-sm font-normal">Valor livre, sem produto e com cliente opcional</span></Button>
-            <Button ref={advancedButtonRef} type="button" variant={saleMode === 'advanced' ? 'default' : 'outline'} disabled={busy || Boolean(saleId)} onClick={() => openSaleDialog('advanced')} className="h-auto min-h-24 flex-col gap-2 whitespace-normal rounded-2xl" aria-keyshortcuts="F2"><span className="text-lg font-semibold">F2 · Venda avançada</span><span className="text-sm font-normal">Selecionar produtos e cliente opcional</span></Button>
+          <h2 className="text-xl font-semibold tracking-tight">Nova venda</h2>
+          <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-200/60 p-1" aria-label="Modo da venda">
+            <Button ref={quickButtonRef} type="button" variant="ghost" aria-pressed={saleMode === 'quick'} disabled={busy || Boolean(saleId)} onClick={() => openSaleDialog('quick')} className={`h-11 gap-2 rounded-lg px-2 ${saleMode === 'quick' ? 'bg-white text-orange-800 shadow-sm hover:bg-white' : 'text-slate-600 hover:bg-white/60'}`} aria-label="F1 · Venda rápida" aria-keyshortcuts="F1"><span className="hidden text-xs sm:inline">F1</span>Venda rápida</Button>
+            <Button ref={advancedButtonRef} type="button" variant="ghost" aria-pressed={saleMode === 'advanced'} disabled={busy || Boolean(saleId)} onClick={() => openSaleDialog('advanced')} className={`h-11 gap-2 rounded-lg px-2 ${saleMode === 'advanced' ? 'bg-white text-orange-800 shadow-sm hover:bg-white' : 'text-slate-600 hover:bg-white/60'}`} aria-label="F2 · Venda com produtos" aria-keyshortcuts="F2"><span className="hidden text-xs sm:inline">F2</span>Com produtos</Button>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wide text-orange-700">{saleMode === 'quick' ? 'Venda rápida' : 'Venda avançada'}</p>
-            <p className="my-5 text-5xl font-semibold tabular-nums">{money(total)}</p>
-            <p className="text-sm text-slate-500">{saleMode === 'quick' ? 'Informe o valor e escolha a forma de pagamento ao lado.' : `${cart.length} produtos selecionados. Confira o carrinho e prossiga para o pagamento.`}</p>
-            <Button type="button" variant="outline" disabled={busy || Boolean(saleId)} className="mt-6" onClick={() => openSaleDialog(saleMode)}>{saleMode === 'quick' ? 'Informar / editar valor' : 'Selecionar / editar produtos'}</Button>
-          </div>
+          {saleMode === 'quick' ? <form onSubmit={event => { event.preventDefault(); paymentButtonRef.current?.focus(); }} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <label htmlFor="pdv-sale-value" className="block text-sm font-medium">Valor da venda</label>
+            <div className="relative"><span aria-hidden="true" className="absolute left-4 top-4 text-lg text-slate-400">R$</span><MoneyInput id="pdv-sale-value" entryMode={quickEntryMode} value={quickAmount} onValueChange={setQuickAmount} disabled={busy || Boolean(saleId)} className="h-16 pl-12 text-right text-3xl font-semibold tabular-nums" /></div>
+            <details className="text-sm text-slate-600"><summary className="cursor-pointer font-medium">Adicionar descrição (opcional)</summary><label htmlFor="pdv-sale-notes" className="sr-only">Descrição da venda (opcional)</label><Input id="pdv-sale-notes" value={saleNotes} disabled={busy || Boolean(saleId)} onChange={event => setSaleNotes(event.target.value)} maxLength={1000} placeholder="Ex.: Serviço ou referência" className="mt-3" /></details>
+            {initialServiceSale && <p className="text-xs text-slate-500">Valor definido na ordem de serviço.</p>}
+          </form> : !saleDialogOpen ? catalogPanel : <p className="text-sm text-slate-500">Selecione os produtos na janela aberta.</p>}
         </section>
 
-        <aside className="h-fit rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-5">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-semibold">{initialServiceSale ? 'Recebimento da O.S.' : saleMode === 'quick' ? 'Venda rápida' : 'Carrinho'}</h2><p className="text-sm text-slate-500">{initialServiceSale ? 'Orçamento aprovado' : saleMode === 'quick' ? 'Valor livre' : `${cart.length} ${cart.length === 1 ? 'item' : 'itens'}`}</p></div><button type="button" onClick={resetSale} disabled={!hasSaleValue || busy || Boolean(saleId)} className="text-sm font-medium text-slate-500 hover:text-red-600 disabled:opacity-40">Limpar</button></div>
-          <div className="max-h-[min(46vh,480px)] min-h-40 overflow-y-auto px-5">
-            {saleMode === 'quick' ? <div className="flex h-40 flex-col items-center justify-center gap-2 text-center"><p className="font-medium">{saleNotes.trim() || 'Venda sem produto cadastrado'}</p><p className="text-2xl font-semibold tabular-nums">{money(subtotal)}</p><p className="text-xs text-slate-500">{initialServiceSale ? 'Peças baixadas na conclusão paga' : 'Sem movimentação de estoque'}</p></div> : !cart.length ? <div className="flex h-40 flex-col items-center justify-center text-center"><ShoppingBag className="mb-2 text-slate-300" size={28} /><p className="text-sm text-slate-500">Adicione produtos para iniciar a venda.</p></div> : <ul className="divide-y divide-slate-100">{cart.map(({ product, quantity }) => <li key={product.id} className="py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium leading-5">{product.name}</p><p className="mt-1 text-xs text-slate-500">{money(Number(product.price))} / {product.unitOfMeasure}</p></div><button type="button" onClick={() => setQuantity(product.id, 0)} disabled={Boolean(saleId)} aria-label={`Remover ${product.name}`} className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30"><Trash2 size={16} /></button></div><div className="mt-3 flex items-center justify-between"><div className="flex items-center rounded-lg border border-slate-200"><button type="button" onClick={() => setQuantity(product.id, quantity - (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Diminuir quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Minus size={15} /></button><input aria-label={`Quantidade de ${product.name}`} type="number" min={product.sellByFraction ? '0.001' : '1'} step={product.sellByFraction ? '0.001' : '1'} value={quantity} disabled={Boolean(saleId)} onChange={(event) => setQuantity(product.id, Number(event.target.value))} className="w-16 border-x border-slate-200 py-1 text-center text-sm tabular-nums outline-none disabled:bg-slate-50" /><button type="button" onClick={() => setQuantity(product.id, quantity + (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Aumentar quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Plus size={15} /></button></div><span className="font-semibold tabular-nums">{money(Number(product.price) * quantity)}</span></div><p className="mt-1 text-right text-[11px] text-slate-400">{product.sellByFraction ? 'Venda fracionada' : 'Unidade inteira'}</p></li>)}</ul>}
+        <aside aria-label="Resumo da venda" className="h-fit rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-5">
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="text-lg font-semibold">{initialServiceSale ? 'Recebimento da O.S.' : 'Resumo da venda'}</h2><p className="text-sm text-slate-500">{initialServiceSale ? 'Orçamento aprovado' : saleMode === 'quick' ? 'Valor livre' : `${cart.length} ${cart.length === 1 ? 'item' : 'itens'}`}</p></div><button type="button" onClick={resetSale} disabled={!hasSaleValue || busy || Boolean(saleId)} className="text-sm font-medium text-slate-500 hover:text-red-600 disabled:opacity-40">Limpar</button></div>
+          <div className={saleMode === 'quick' ? 'px-5' : 'max-h-[min(40vh,400px)] min-h-24 overflow-y-auto px-5'}>
+            {saleMode === 'quick' ? (saleNotes.trim() ? <p className="py-3 text-sm text-slate-600">{saleNotes.trim()}</p> : null) : !cart.length ? <div className="flex h-24 flex-col items-center justify-center text-center"><ShoppingBag className="mb-2 text-slate-300" size={28} /><p className="text-sm text-slate-500">Adicione produtos para iniciar a venda.</p></div> : <ul className="divide-y divide-slate-100">{cart.map(({ product, quantity }) => <li key={product.id} className="py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium leading-5">{product.name}</p><p className="mt-1 text-xs text-slate-500">{money(Number(product.price))} / {product.unitOfMeasure}</p></div><button type="button" onClick={() => setQuantity(product.id, 0)} disabled={Boolean(saleId)} aria-label={`Remover ${product.name}`} className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30"><Trash2 size={16} /></button></div><div className="mt-3 flex items-center justify-between"><div className="flex items-center rounded-lg border border-slate-200"><button type="button" onClick={() => setQuantity(product.id, quantity - (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Diminuir quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Minus size={15} /></button><input aria-label={`Quantidade de ${product.name}`} type="number" min={product.sellByFraction ? '0.001' : '1'} step={product.sellByFraction ? '0.001' : '1'} value={quantity} disabled={Boolean(saleId)} onChange={(event) => setQuantity(product.id, Number(event.target.value))} className="w-16 border-x border-slate-200 py-1 text-center text-sm tabular-nums outline-none disabled:bg-slate-50" /><button type="button" onClick={() => setQuantity(product.id, quantity + (product.sellByFraction ? 0.5 : 1))} disabled={Boolean(saleId)} aria-label="Aumentar quantidade" className="p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-30"><Plus size={15} /></button></div><span className="font-semibold tabular-nums">{money(Number(product.price) * quantity)}</span></div><p className="mt-1 text-right text-[11px] text-slate-400">{product.sellByFraction ? 'Venda fracionada' : 'Unidade inteira'}</p></li>)}</ul>}
           </div>
 
           <div className="space-y-3 border-t border-slate-100 px-5 py-4">
-            <div className="flex items-center justify-between text-sm"><span className="text-slate-600">Subtotal</span><span className="tabular-nums">{money(subtotal)}</span></div>
+            {saleMode === 'advanced' && <div className="flex items-center justify-between text-sm"><span className="text-slate-600">Subtotal</span><span className="tabular-nums">{money(subtotal)}</span></div>}
             {saleMode === 'advanced' && <>
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><label htmlFor="sale-discount" className="text-slate-600">Desconto</label><div className="flex gap-2"><select aria-label="Tipo de desconto" value={discountMode} disabled={Boolean(saleId)} onChange={(event) => { setDiscountMode(event.target.value as 'amount' | 'percent'); setDiscount('0'); }} className="h-9 rounded-md border border-slate-200 bg-white px-2 disabled:bg-slate-50"><option value="amount">R$</option><option value="percent">%</option></select><>{discountMode === 'amount' ? <MoneyInput id="sale-discount" value={discount} disabled={Boolean(saleId)} onValueChange={setDiscount} className="h-9 w-28 text-right tabular-nums" /> : <Input id="sale-discount" type="number" min="0" max="100" step="0.01" value={discount} disabled={Boolean(saleId)} onChange={event => setDiscount(event.target.value)} className="h-9 w-28 text-right tabular-nums" />}</></div></div>
             {discountMode === 'percent' && <p className="text-right text-xs text-slate-500">Desconto aplicado: {money(discountValue)}</p>}
@@ -613,7 +637,6 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
             {paymentOptions.length ? <div className="relative"><select id="payment-method" value={selectedOption} onChange={(event) => setSelectedOption(event.target.value)} disabled={!paymentEditable} className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-9 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-50">{paymentOptions.map((option) => { const value = option.provider + option.method + option.terminalId; const methodLabel = option.provider === 'fiado' ? 'Pagar depois' : option.provider === 'split' ? 'Dividido' : option.method === 'pix' ? 'Pix' : option.method === 'cash' ? 'Dinheiro' : option.method === 'credit_card' ? 'Crédito' : 'Débito'; return <option key={value} value={value}>{option.label} · {methodLabel}</option>; })}</select><ChevronDown className="pointer-events-none absolute right-3 top-3 text-slate-400" size={18} /></div> : <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Nenhuma forma de pagamento está ativa. Peça ao responsável para configurar uma opção.</p>}
             {needsCustomerEmail && <label className="mt-3 block text-sm font-medium" htmlFor="customer-email">E-mail do comprador<Input id="customer-email" type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder={selectedPayment.environment === 'sandbox' ? 'comprador@testuser.com' : 'comprador@exemplo.com'} disabled={!paymentEditable} className="mt-2 h-10" required />{selectedPayment.environment === 'sandbox' && <span className="mt-1 block text-xs font-normal text-slate-500">No Sandbox, use um e-mail de teste com final @testuser.com.</span>}</label>}
             {needsGatewayCustomer && <fieldset className="mt-3 space-y-3 rounded-xl border border-slate-200 p-3"><legend className="px-1 text-sm font-medium">Dados para cobrança Pix {needsPagBankCustomer ? 'PagBank' : 'Pagar.me'}</legend><p className="text-xs text-slate-500">{needsPagBankCustomer ? 'Para gerar o Pix PagBank, informe nome, e-mail e CPF/CNPJ do comprador.' : 'Para gerar o Pix, informe nome, e-mail, CPF/CNPJ e celular com DDD. Algumas contas Pagar.me PSP também exigem endereço; deixe os dados extras fechados se não forem solicitados.'}</p><div className="grid grid-cols-2 gap-2"><Input autoComplete="name" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Nome completo" aria-label="Nome completo do comprador" className="col-span-2 h-10" /><Input type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} placeholder="E-mail" aria-label="E-mail do comprador" className="h-10" /><Input value={customerDocument} onChange={(event) => setCustomerDocument(event.target.value)} placeholder="CPF/CNPJ" aria-label="CPF ou CNPJ do comprador" className="h-10" />{needsPagarmeCustomer && <Input type="tel" autoComplete="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="Celular com DDD" aria-label="Celular do comprador" className="col-span-2 h-10" />}</div>{needsPagarmeCustomer && <details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-medium text-slate-700">Endereço (se exigido pela conta Pagar.me)</summary><div className="mt-3 grid grid-cols-2 gap-2"><Input autoComplete="postal-code" value={customerZipCode} onChange={(event) => setCustomerZipCode(event.target.value)} placeholder="CEP" aria-label="CEP do comprador" className="h-10" /><Input autoComplete="address-level2" value={customerCity} onChange={(event) => setCustomerCity(event.target.value)} placeholder="Cidade" aria-label="Cidade do comprador" className="h-10" /><Input autoComplete="address-line1" value={customerStreet} onChange={(event) => setCustomerStreet(event.target.value)} placeholder="Rua" aria-label="Rua do comprador" className="h-10" /><Input value={customerNumber} onChange={(event) => setCustomerNumber(event.target.value)} placeholder="Número" aria-label="Número do endereço" className="h-10" /><Input value={customerNeighborhood} onChange={(event) => setCustomerNeighborhood(event.target.value)} placeholder="Bairro" aria-label="Bairro do comprador" className="h-10" /><Input value={customerState} onChange={(event) => setCustomerState(event.target.value.toUpperCase().slice(0, 2))} placeholder="UF" aria-label="Estado do comprador" maxLength={2} className="h-10" /></div></details>}{needsPagarmeCustomer && hasOptionalAddress && !optionalAddressComplete && <p className="text-xs text-red-600">Preencha todos os campos do endereço ou deixe-os vazios.</p>}</fieldset>}
-            {hasSaleValue && selectedPayment && <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm" aria-label="Resumo antes da cobrança"><p className="font-semibold">Confira antes de cobrar</p><p>{saleMode === 'quick' ? 'Venda rápida' : `${cart.length} produtos`} · {selectedCustomer?.name ?? 'Cliente não identificado'}</p>{saleNotes.trim() && <p className="break-words">{saleNotes}</p>}<p>Pagamento: <strong>{selectedPayment.label}</strong></p><p>Total: <strong>{money(amountDue)}</strong></p></div>}
             <Button ref={paymentButtonRef} type="button" onClick={startCheckout} disabled={(!saleId && insufficientStock) || !hasSaleValue || !selectedPayment || busy || total <= 0 || (needsCustomerEmail && (!customerEmailValid || !sandboxEmailValid)) || (needsGatewayCustomer && !pagarmeCustomerValid)} className="mt-4 h-12 w-full rounded-xl bg-orange-600 text-base font-semibold hover:bg-orange-700">{busy ? <LoaderCircle className="mr-2 animate-spin" size={18} /> : <CreditCard className="mr-2" size={18} />}{selectedPayment?.provider === 'fiado' ? `Registrar fiado de ${money(total)}` : saleId ? 'Tentar pagamento' : `Cobrar ${money(total)}`}</Button>
             {saleId && !awaitingPayment && <button type="button" onClick={() => void cancelSale()} disabled={busy} className="mt-2 w-full py-1 text-sm font-medium text-slate-500 hover:text-red-600">Cancelar venda e liberar estoque</button>}
             <p className="mt-2 text-center text-xs text-slate-500">{initialServiceSale ? 'As peças da O.S. serão baixadas após o pagamento integral.' : saleMode === 'quick' ? 'Venda rápida não movimenta o estoque.' : 'O estoque é reservado ao iniciar a cobrança.'}</p>
@@ -660,7 +683,7 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
         </aside>
       </div>
 
-      <dialog ref={saleDialog} aria-labelledby="sale-mode-title" onClose={() => (saleMode === 'quick' ? quickButtonRef : advancedButtonRef).current?.focus()} className="m-auto max-h-[90dvh] w-[min(95vw,1100px)] overflow-y-auto rounded-2xl border bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/50">
+      <dialog ref={saleDialog} aria-labelledby="sale-mode-title" onClose={() => { setSaleDialogOpen(false); (saleMode === 'quick' ? quickButtonRef : advancedButtonRef).current?.focus(); }} className="m-auto max-h-[90dvh] w-[min(95vw,1100px)] overflow-y-auto rounded-2xl border bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/50">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white p-5"><h2 id="sale-mode-title" className="text-xl font-semibold">{saleMode === 'quick' ? 'F1 · Venda rápida' : 'F2 · Venda avançada'}</h2><button type="button" onClick={() => saleDialog.current?.close()} aria-label="Fechar modal da venda" className="rounded-lg p-2 hover:bg-slate-100"><X size={20} /></button></header>
         <div className="p-5">
           {saleMode === 'quick' ? <form onSubmit={event => { event.preventDefault(); if (Number(quickAmount) > 0) { saleDialog.current?.close(); paymentButtonRef.current?.focus(); } }} className="mx-auto max-w-md space-y-5 py-6">
@@ -673,31 +696,7 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
             <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">A venda rápida registra apenas o valor financeiro. Nenhum produto será baixado do estoque.</p>
             <Button type="submit" disabled={Number(quickAmount) <= 0 || !quickAmount} className="h-12 w-full bg-orange-600 hover:bg-orange-700">Continuar para pagamento · {money(total)}</Button>
           </form> : <>
-        <section className="min-w-0">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div><h2 className="text-2xl font-semibold tracking-tight">Produtos da venda avançada</h2><p className="mt-1 text-sm text-slate-500">Pesquise ou leia o código de barras para adicionar produtos.</p></div>
-            <Button type="button" variant="outline" className="hidden sm:inline-flex" onClick={() => searchRef.current?.focus()}><Barcode className="mr-2" size={17} />Leitor de código</Button>
-          </div>
-
-          <form onSubmit={handleSearchSubmit} className="mb-4 flex gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><Input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar produto ou escanear código de barras" className="h-12 border-0 bg-slate-50 pl-11 text-base shadow-none focus-visible:ring-orange-500" aria-label="Buscar produto ou código de barras" /></div>
-            <Button type="submit" className="h-12 rounded-xl bg-orange-600 px-5 hover:bg-orange-700"><Search size={18} /><span className="ml-2 hidden sm:inline">Buscar</span></Button>
-          </form>
-
-          <label className="mb-4 block text-sm">Categoria<select value={category} onChange={event => setCategory(event.target.value)} className="ml-2 h-10 rounded-lg border bg-white px-3"><option value="">Todas as categorias</option>{categories.map(name => <option key={name} value={name}>{name}</option>)}<option value="__uncategorized">Sem categoria</option></select></label>
-          <div className="mb-3 flex items-center justify-between px-1"><h3 className="font-semibold">Produtos</h3><span className="text-sm text-slate-500">{loadingProducts ? 'Buscando…' : `${products.length} encontrados`}</span></div>
-          {products.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {products.map((product) => {
-              const stock = Number(product.stockQuantity);
-              return <button key={product.id} type="button" onClick={() => addProduct(product)} disabled={stock <= 0 || Boolean(saleId)} className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
-                <div className="mb-5 flex items-start justify-between gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-700"><PackageSearch size={21} /></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${stock > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{stock > 0 ? `${product.stockQuantity} ${product.unitOfMeasure} em estoque` : 'Sem estoque'}</span></div>
-                <h4 className="line-clamp-2 min-h-12 font-semibold leading-6">{product.name}</h4>
-                <p className="mt-1 truncate text-xs text-slate-500">{product.sku ? `SKU ${product.sku}` : 'Sem SKU'}{product.stockAisle ? ` · Corredor ${product.stockAisle}` : ''}{product.stockShelf ? ` · Prateleira ${product.stockShelf}` : ''}</p>
-                <div className="mt-4 flex items-end justify-between"><p className="text-lg font-semibold tabular-nums">{money(Number(product.price))}<span className="ml-1 text-xs font-normal text-slate-500">/ {product.unitOfMeasure}</span></p><span className="flex h-8 items-center justify-center gap-1 rounded-lg bg-orange-50 px-2 text-sm font-medium text-orange-700 transition group-hover:bg-orange-600 group-hover:text-white"><Plus size={18} />Adicionar</span></div>
-              </button>;
-            })}
-          </div> : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center"><div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500"><PackageSearch size={23} /></div><p className="font-medium">{loadingProducts ? 'Carregando catálogo…' : 'Nenhum produto encontrado'}</p><p className="mt-1 text-sm text-slate-500">Tente buscar por outro nome, SKU ou código de barras.</p></div>}
-        </section>
+        {saleDialogOpen && catalogPanel}
 
           </>}
         </div>

@@ -23,16 +23,67 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('main PDV shows actionable counts without opening a notification modal', async ({ page }) => {
+test('main PDV keeps counts in the bell and shows details only when requested', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/inventory.html?mode=pdv');
   const panel = page.getByRole('region', { name: 'Alertas de estoque e validade' });
+  await expect(panel).toHaveCount(0);
+  await expect(page.locator('dialog[open], [aria-modal="true"]')).toHaveCount(0);
+  const notification = page.getByRole('button', { name: 'Alertas de produtos: 3', exact: true });
+  await expect(notification).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cobrar R$ 0,00', exact: true })).toBeInViewport();
+  await page.screenshot({ path: 'output/pdv-clean-mobile.png', fullPage: true });
+  await notification.click();
   await expect(panel.getByText('3 produto(s) precisam de atenção.', { exact: false })).toBeVisible();
   await expect(panel.getByRole('link', { name: '1 Estoque baixo' })).toHaveAttribute('href', '/produtos?alert=low');
   await expect(panel.getByRole('link', { name: 'Ver relatório' })).toHaveAttribute('href', '/relatorios#estoque-validade');
-  await expect(page.locator('dialog[open], [aria-modal="true"]')).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Avisos da loja' })).toBeVisible();
+  await expect(panel.getByRole('link', { name: 'Ver relatório' })).toHaveAttribute('target', '_blank');
   await expect(panel.getByText(/vencem hoje ou nos próximos 7 dias/)).toBeVisible();
   await page.screenshot({ path: 'output/inventory-alerts-pdv-mobile.png', fullPage: true });
+  await page.getByRole('button', { name: 'Fechar avisos da loja' }).click();
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
+});
+
+test('desktop PDV keeps checkout visible and preserves entered value when consulting alerts', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 620 });
+  await page.addInitScript(() => localStorage.setItem('montante.sidebar.collapsed', 'true'));
+  await page.goto('/inventory.html?mode=pdv');
+  const value = page.getByLabel('Valor da venda', { exact: true });
+  await expect(value).toBeVisible();
+  await value.fill('25,90');
+  const charge = page.getByRole('button', { name: 'Cobrar R$ 25,90', exact: true });
+  await expect(charge).toBeEnabled();
+  await expect(charge).toBeInViewport();
+  await page.getByRole('button', { name: 'Caixa', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Fechar caixa', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Alertas de produtos: 3', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(value).toHaveValue('25,90');
+  await expect(charge).toBeEnabled();
+  await expect(page.getByRole('region', { name: 'Alertas de estoque e validade' })).toHaveCount(0);
+  await page.getByText('Adicionar descrição (opcional)', { exact: true }).click();
+  await page.getByLabel('Descrição da venda (opcional)', { exact: true }).fill('Serviço de teste');
+  await expect(page.getByRole('complementary', { name: 'Resumo da venda' }).getByText('Serviço de teste', { exact: true })).toBeVisible();
+  await page.getByText('Adicionar descrição (opcional)', { exact: true }).click();
+  await page.screenshot({ path: 'output/pdv-clean-desktop.png', fullPage: true });
+});
+
+test('products remain searchable on the main screen after leaving the F2 window', async ({ page }) => {
+  await page.route('**/api/products?*', route => route.fulfill({ json: { products: [{ id: 'product-a', name: 'Cabo USB', sku: 'USB01', barcode: null, unitOfMeasure: 'un', sellByFraction: false, price: '10.00', stockQuantity: '5.000', stockAisle: null, stockShelf: null }], categories: [] } }));
+  await page.goto('/inventory.html?mode=pdv');
+  await page.getByRole('button', { name: 'F2 · Venda com produtos', exact: true }).click();
+  const modal = page.getByRole('dialog', { name: 'F2 · Venda avançada', exact: true });
+  await expect(modal).toBeVisible();
+  await page.getByRole('button', { name: 'Fechar modal da venda' }).click();
+  const search = page.getByRole('textbox', { name: 'Buscar produto ou código de barras' });
+  await expect(search).toHaveCount(1);
+  await search.fill('USB');
+  await page.getByRole('button', { name: /Cabo USB/ }).click();
+  const charge = page.getByRole('button', { name: 'Cobrar R$ 10,00', exact: true });
+  await expect(charge).toBeEnabled();
+  await expect(page.getByRole('spinbutton', { name: 'Quantidade de Cabo USB' })).toHaveValue('1');
 });
 
 test('report filters current inventory and exports the same filtered selection', async ({ page }) => {

@@ -111,7 +111,8 @@ for (const action of ['open', 'close']) {
     });
     await page.route(`**/caixa?action=${action}`, route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><script>window.process={env:{NODE_ENV:"development"}};</script><div id="root"></div><script type="module" src="/cash.jsx"></script></body></html>' }));
     await page.goto('/cash.html?mode=pdv', { waitUntil: 'domcontentloaded' });
-    const shortcut = page.getByRole('button', { name: action === 'open' ? 'Abrir caixa' : 'Fechar caixa', exact: true });
+    await page.getByRole('button', { name: 'Caixa', exact: true }).click();
+    const shortcut = page.getByRole('menuitem', { name: action === 'open' ? 'Abrir caixa' : 'Fechar caixa', exact: true });
     await expect(shortcut).toBeInViewport();
     await expect(page.locator('dialog[open]')).toHaveCount(0);
     if (action === 'close') await page.screenshot({ path: 'output/pdv-cash-buttons-mobile.png', fullPage: true });

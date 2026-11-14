@@ -5,11 +5,12 @@ import { INVENTORY_FILTERS, INVENTORY_LABELS, inventoryDate, type InventoryFilte
 import InventoryAlertBadges from './inventory-alert-badges';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Bell, X } from 'lucide-react';
 
 type Report = { today: string; summary: InventorySummary; items: InventoryItem[]; total: number; pageSize: number };
 const counts = ['low', 'out', 'expiring', 'expired'] as const;
 
-export default function InventoryAlertsPanel({ mode = 'summary', onFilter, refreshKey }: { mode?: 'summary' | 'catalog' | 'report'; onFilter?: (filter: InventoryFilter) => void; refreshKey?: string }) {
+export default function InventoryAlertsPanel({ mode = 'summary', onFilter, refreshKey }: { mode?: 'summary' | 'notification' | 'catalog' | 'report'; onFilter?: (filter: InventoryFilter) => void; refreshKey?: string }) {
   const [report, setReport] = useState<Report | null>(null);
   const [filter, setFilter] = useState<InventoryFilter>('all');
   const [query, setQuery] = useState('');
@@ -18,6 +19,8 @@ export default function InventoryAlertsPanel({ mode = 'summary', onFilter, refre
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
   const sequence = useRef(0);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const summaryMode = mode === 'summary' || mode === 'notification';
   const params = new URLSearchParams({ filter, page: String(page), ...(query.trim() ? { q: query.trim() } : {}) });
 
   useEffect(() => {
@@ -50,11 +53,11 @@ export default function InventoryAlertsPanel({ mode = 'summary', onFilter, refre
     setFilter(value); setPage(1); onFilter?.(value);
   }
 
-  return <section aria-label="Alertas de estoque e validade" className="space-y-4 rounded-2xl border border-amber-200 bg-white p-4 shadow-sm sm:p-5">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Alertas de estoque e validade</h2><p className="mt-1 text-sm text-slate-600">{report ? `${report.summary.all} produto(s) precisam de atenção.` : 'Consultando os produtos da loja…'}{report && ` Atualizado em ${inventoryDate(report.today)}.`}</p></div>{mode === 'summary' && <a href="/relatorios#estoque-validade" className="text-sm font-semibold text-orange-700 underline">Ver relatório</a>}</div>
+  const content = <section aria-label="Alertas de estoque e validade" className="space-y-4 rounded-2xl border border-amber-200 bg-white p-4 shadow-sm sm:p-5">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Alertas de estoque e validade</h2><p className="mt-1 text-sm text-slate-600">{report ? `${report.summary.all} produto(s) precisam de atenção.` : 'Consultando os produtos da loja…'}{report && ` Atualizado em ${inventoryDate(report.today)}.`}</p></div>{summaryMode && <a href="/relatorios#estoque-validade" target={mode === 'notification' ? '_blank' : undefined} rel={mode === 'notification' ? 'noopener noreferrer' : undefined} className="text-sm font-semibold text-orange-700 underline">Ver relatório</a>}</div>
     {error ? <div role="alert" className="text-sm text-red-700">{error} <button type="button" onClick={() => setRetry(value => value + 1)} className="font-semibold underline">Tentar novamente</button></div> : report && <>
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">{counts.map(key => mode === 'summary'
-        ? <a key={key} href={`/produtos?alert=${key}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3 hover:border-orange-400"><span className="block text-2xl font-semibold tabular-nums">{report.summary[key]}</span><span className="text-sm text-slate-600">{INVENTORY_LABELS[key]}</span></a>
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">{counts.map(key => summaryMode
+        ? <a key={key} href={`/produtos?alert=${key}`} target={mode === 'notification' ? '_blank' : undefined} rel={mode === 'notification' ? 'noopener noreferrer' : undefined} className="rounded-xl border border-slate-200 bg-slate-50 p-3 hover:border-orange-400"><span className="block text-2xl font-semibold tabular-nums">{report.summary[key]}</span><span className="text-sm text-slate-600">{INVENTORY_LABELS[key]}</span></a>
         : <button key={key} type="button" onClick={() => choose(key)} aria-pressed={filter === key} className={`rounded-xl border p-3 text-left ${filter === key ? 'border-orange-400 bg-orange-50' : 'border-slate-200 bg-slate-50 hover:border-orange-400'}`}><span className="block text-2xl font-semibold tabular-nums">{report.summary[key]}</span><span className="text-sm text-slate-600">{INVENTORY_LABELS[key]}</span></button>)}</div>
       {report.summary.urgent > 0 && <p className="text-sm font-medium text-orange-800">Atenção: {report.summary.urgent} produto(s) vencem hoje ou nos próximos 7 dias.</p>}
       {report.summary.all === 0 && <p className="text-sm text-emerald-800">Nenhum alerta nos produtos ativos. Para monitorar reposição e vencimento, informe o estoque mínimo e a validade no cadastro.</p>}
@@ -67,4 +70,14 @@ export default function InventoryAlertsPanel({ mode = 'summary', onFilter, refre
       {report && !error && <><div className="overflow-x-auto"><table className="w-full min-w-[740px] text-left text-sm"><thead className="bg-slate-50"><tr>{['Produto / SKU', 'Quantidade', 'Mínimo', 'Validade', 'Dias restantes', 'Lote', 'Avisos'].map(title => <th key={title} className="p-3">{title}</th>)}</tr></thead><tbody>{report.items.map(item => <tr key={item.id} className="border-t border-slate-100"><td className="p-3"><a href={`/produtos?q=${encodeURIComponent(item.name)}`} className="font-semibold text-orange-700 underline">{item.name}</a><p className="text-xs text-slate-500">{item.sku ?? 'Sem SKU'}</p></td><td className="p-3 tabular-nums">{Number(item.stockQuantity).toLocaleString('pt-BR')} {item.unitOfMeasure}</td><td className="p-3">{item.stockMinAlert == null ? 'Não definido' : Number(item.stockMinAlert).toLocaleString('pt-BR')}</td><td className="p-3">{inventoryDate(item.attributes.expiryDate)}</td><td className="p-3">{item.daysUntilExpiry === null ? '—' : item.daysUntilExpiry === 0 ? 'Vence hoje' : item.daysUntilExpiry < 0 ? `Vencido há ${-item.daysUntilExpiry} dia(s)` : item.daysUntilExpiry}</td><td className="p-3">{item.attributes.lot || '—'}</td><td className="p-3"><InventoryAlertBadges flags={item.flags} /></td></tr>)}</tbody></table></div>{report.items.length === 0 && <p className="text-sm text-slate-500">Nenhum produto corresponde a este filtro.</p>}<div className="flex items-center justify-between gap-3 text-sm"><span>{report.total} produto(s) · Página {page}</span><div className="flex gap-2"><Button type="button" variant="outline" disabled={page === 1 || busy} onClick={() => setPage(value => value - 1)}>Anterior</Button><Button type="button" variant="outline" disabled={busy || page * report.pageSize >= report.total} onClick={() => setPage(value => value + 1)}>Próxima</Button></div></div></>}
     </>}
   </section>;
+  if (mode !== 'notification') return content;
+
+  return <>
+    <Button type="button" variant="outline" onClick={() => dialog.current?.showModal()} aria-label={error ? 'Alertas de produtos: consulta indisponível' : report ? `Alertas de produtos: ${report.summary.all}` : 'Consultar alertas de produtos'} className="gap-2 rounded-lg bg-white"><Bell size={17} aria-hidden="true" /><span>Alertas</span>{(error || !report || report.summary.all > 0) && <span aria-hidden="true" className={`min-w-5 rounded-full px-1.5 py-0.5 text-xs font-semibold ${error || (report?.summary.expired ?? 0) > 0 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900'}`}>{error ? '!' : report ? report.summary.all : '…'}</span>}</Button>
+    <dialog ref={dialog} aria-labelledby="inventory-notification-title" className="m-auto max-h-[90dvh] w-[min(95vw,680px)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-2xl backdrop:bg-slate-950/50">
+      <header className="mb-3 flex items-center justify-between gap-3"><h2 id="inventory-notification-title" className="flex items-center gap-2 text-lg font-semibold"><Bell size={19} />Avisos da loja</h2><button type="button" onClick={() => dialog.current?.close()} aria-label="Fechar avisos da loja" className="rounded-lg p-2 hover:bg-slate-100"><X size={20} /></button></header>
+      {content}
+      <p className="mt-3 text-xs text-slate-500">As listas e o relatório abrem em outra aba para preservar sua venda.</p>
+    </dialog>
+  </>;
 }
