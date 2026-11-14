@@ -29,6 +29,6 @@ export default async function PointOfSalePage(props: { searchParams: Promise<{ s
   }
   return <>
     <PdvScreensaver initial={{ imageUrl: tenant.screensaver_url ?? '', minutes: tenant.screensaver_minutes }} />
-    <PointOfSale key={initialServiceSale?.id ?? 'new'} storeName={tenant.name} logoUrl={tenant.logo_url ?? ''} canManageBrand={canManageStore} operatorName={session.user.name ?? 'Operador'} initialServiceSale={initialServiceSale} />
+    <PointOfSale key={initialServiceSale?.id ?? 'new'} storeName={tenant.name} logoUrl={tenant.logo_url ?? ''} canManageBrand={canManageStore} operatorName={session.user.name ?? 'Operador'} initialServiceSale={initialServiceSale} offlineOwner={{ tenantId, userId: session.user.id }} />
   </>;
 }

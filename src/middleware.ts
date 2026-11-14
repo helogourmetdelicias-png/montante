@@ -8,7 +8,7 @@ export default async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // The scheduler route enforces its own Bearer secret because it has no user session.
-  const isPublic = pathname === '/api/health' || pathname === '/api/cron/release-expired-sales' || pathname === '/api/cron/billing' || pathname === '/api/webhooks/billing' ||
+  const isPublic = pathname === '/sw.js' || pathname.startsWith('/offline/') || pathname === '/api/health' || pathname === '/api/cron/release-expired-sales' || pathname === '/api/cron/billing' || pathname === '/api/webhooks/billing' ||
     pathname === '/api/webhooks/mercadopago' || PUBLIC_ROUTES.some((route) =>
     pathname.startsWith(route)
   );
@@ -23,6 +23,9 @@ export default async function middleware(req: NextRequest) {
 
   const token = isPublic ? null : await getToken({ req, secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET, secureCookie: req.nextUrl.protocol === 'https:' });
   if (!token && !isPublic) {
+    if (pathname === '/api/pos/offline' || pathname === '/api/pos/offline/sync') {
+      return NextResponse.json({ error: 'Entre novamente com o operador que registrou as vendas. Elas continuam salvas neste aparelho.' }, { status: 401 });
+    }
     const loginUrl = new URL('/login', req.url);
     return NextResponse.redirect(loginUrl);
   }

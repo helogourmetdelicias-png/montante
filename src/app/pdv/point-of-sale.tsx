@@ -10,6 +10,7 @@ import StoreNavigation from '@/components/store-navigation';
 import BusinessDate from '@/components/business-date';
 import InventoryAlertsPanel from '@/components/inventory-alerts-panel';
 import PdvCashMenu from '@/components/pdv-cash-menu';
+import PdvOfflineStatus from '@/components/pdv-offline-status';
 import ReceiptPreview from './receipt-preview';
 import PixPaymentDetails from './pix-payment-details';
 import type { SaleCustomer } from './customer-picker';
@@ -31,7 +32,7 @@ type Product = {
 
 type CartLine = { product: Product; quantity: number };
 type PaymentOption = { provider: string; label: string; method: string; channel: string; terminalId?: string; environment?: string; pixProvider?: string };
-type Props = { logoUrl?: string; storeName: string; canManageBrand: boolean; operatorName: string; initialServiceSale?: { id: string; total: string; notes: string; orderId: string } };
+type Props = { logoUrl?: string; storeName: string; canManageBrand: boolean; operatorName: string; offlineOwner?: { tenantId: string; userId: string }; initialServiceSale?: { id: string; total: string; notes: string; orderId: string } };
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -46,7 +47,7 @@ function errorMessage(payload: unknown, fallback: string) {
 }
 
 /** One-screen checkout: searchable catalog on the left, live cart and payment on the right. */
-export default function PointOfSale({ storeName, logoUrl, canManageBrand, operatorName, initialServiceSale }: Props) {
+export default function PointOfSale({ storeName, logoUrl, canManageBrand, operatorName, initialServiceSale, offlineOwner }: Props) {
   const searchRef = useRef<HTMLInputElement>(null);
   const saleDialog = useRef<HTMLDialogElement>(null);
   const quickAmountRef = useRef<HTMLInputElement>(null);
@@ -592,6 +593,10 @@ export default function PointOfSale({ storeName, logoUrl, canManageBrand, operat
             <StoreNavigation activePage="pdv" canManageStore={canManageBrand} />
             <PdvCashMenu disabled={busy || Boolean(saleId) || hasSaleValue} />
             {canManageBrand && <InventoryAlertsPanel mode="notification" />}
+            {offlineOwner && !initialServiceSale && <PdvOfflineStatus {...offlineOwner} blocked={busy || Boolean(saleId)} getDraft={() => ({
+              mode: saleMode, quickAmount: quickAmount.replace('.', ','), discount: (saleMode === 'advanced' ? discountValue : 0).toFixed(2).replace('.', ','), notes: saleNotes,
+              items: cart.map(({ product, quantity }) => ({ productId: product.id, quantityMilli: Math.round(quantity * 1000), price: product.price })),
+            })} />}
             <Button type="button" variant="outline" onClick={() => void toggleFullscreen()} aria-pressed={fullscreen} className="ml-auto hidden lg:inline-flex">{fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</Button>
           </div>
         </div>
